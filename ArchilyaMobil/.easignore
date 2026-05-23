@@ -1,0 +1,13 @@
+node_modules/
+.git/
+.expo/
+dist/
+web-build/
+android/app/build/
+android/build/
+ios/build/
+*.apk
+*.aab
+*.log
+firebase-debug.log
+yapılanlar/

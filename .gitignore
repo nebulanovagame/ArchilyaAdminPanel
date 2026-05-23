@@ -1,0 +1,20 @@
+# Kütüphaneleri asla yükleme
+node_modules/
+jspm_packages/
+
+# Derleme çıktılarını (EXE, ASAR, Installer) yükleme
+release/
+dist/
+build/
+out/
+
+# Tekil büyük dosyalar
+*.exe
+*.asar
+*.zip
+*.msi
+
+# Log ve geçici dosyalar
+*.log
+.eslintcache
+.env

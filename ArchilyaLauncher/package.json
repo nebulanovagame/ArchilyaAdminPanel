@@ -1,0 +1,139 @@
+{
+  "name": "archilyalauncher",
+  "private": true,
+  "version": "0.0.14",
+  "description": "Archilya Oyunu icin Resmi Baslatici",
+  "author": "Archilya",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nebulanovagame/ArchilyaLauncher.git"
+  },
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "preview": "vite preview",
+    "build:main": "tsc -p tsconfig.electron.json",
+    "fetch:tunnel-tools": "node scripts/fetch-cloudflared.js",
+    "fetch:signalling": "node scripts/fetch-signalling.js",
+    "electron:dev": "npm run build:main && tsc && concurrently -k \"cross-env NODE_ENV=development vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "dotenv -e .env -- cross-env-shell \"npm run fetch:tunnel-tools && npm run fetch:signalling && npm run build:main && tsc && npm run build && electron-builder\""
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "chokidar": "^3.6.0",
+    "dotenv": "^17.2.3",
+    "electron-log": "^5.4.3",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.7.3",
+    "extract-zip": "^2.0.1",
+    "firebase": "^12.10.0",
+    "keytar": "^7.9.0",
+    "localtunnel": "^2.0.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tree-kill": "^1.2.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/localtunnel": "^2.0.4",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "autoprefixer": "^10.4.23",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "dotenv-cli": "^11.0.0",
+    "electron": "^40.0.0",
+    "electron-builder": "^26.4.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^7.2.4",
+    "vitest": "^4.1.5",
+    "wait-on": "^9.0.3"
+  },
+  "build": {
+    "appId": "com.archilya.launcher",
+    "productName": "Archilya Launcher",
+    "copyright": "Copyright © 2026 Archilya",
+    "publish": {
+      "provider": "github",
+      "owner": "nebulanovagame",
+      "repo": "ArchilyaLauncher"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": ".env"
+      },
+      {
+        "from": "SignallingWebServer/dist",
+        "to": "SignallingWebServer/dist"
+      },
+      {
+        "from": "SignallingWebServer/www",
+        "to": "SignallingWebServer/www"
+      },
+      {
+        "from": "SignallingWebServer/config.json",
+        "to": "SignallingWebServer/config.json"
+      },
+      {
+        "from": "SignallingWebServer/package.json",
+        "to": "SignallingWebServer/package.json"
+      },
+      {
+        "from": "SignallingWebServer/node_modules",
+        "to": "SignallingWebServer/node_modules"
+      },
+      {
+        "from": "SignallingWebServer/platform_scripts",
+        "to": "SignallingWebServer/platform_scripts"
+      },
+      {
+        "from": "TunnelTools/cloudflared.exe",
+        "to": "TunnelTools/cloudflared.exe"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "public/icon.ico",
+      "artifactName": "Archilya-Launcher-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Archilya",
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "installerHeaderIcon": "public/installerHeaderIcon.bmp",
+      "installerSidebar": "public/installerSidebar.bmp",
+      "uninstallerSidebar": "public/uninstallerSidebar.bmp"
+    }
+  }
+}
