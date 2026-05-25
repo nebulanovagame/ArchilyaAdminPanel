@@ -1,63 +1,82 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
-import {
-  buildRedirectPath,
-  PANEL_LAST_PATH_COOKIE_NAME,
-} from "@/lib/auth/redirect";
-import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
-import { protectedPanelPrefixes } from "@/lib/panel/panel-routes";
-
-function isProtectedPanelPath(pathname: string) {
-  return protectedPanelPrefixes.some((prefix) => {
-    if (prefix === "/") {
-      return pathname === "/";
-    }
-
-    return pathname === prefix || pathname.startsWith(`${prefix}/`);
+export async function proxy(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({
+    request,
   });
-}
 
-export function proxy(request: NextRequest) {
-  const { pathname, search } = request.nextUrl;
-  const redirectPath = buildRedirectPath(pathname, search);
-  const hasSessionCookie = Boolean(
-    request.cookies.get(SESSION_COOKIE_NAME)?.value,
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+
+          supabaseResponse = NextResponse.next({
+            request,
+          });
+
+          cookiesToSet.forEach(({ name, value, options }) => {
+            supabaseResponse.cookies.set(name, value, options);
+          });
+        },
+      },
+    },
   );
 
-  if (isProtectedPanelPath(pathname) && !hasSessionCookie) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/giris";
-    loginUrl.search = new URLSearchParams({
-      from: redirectPath,
-    }).toString();
+  // Refresh the auth token if needed.
+  // Use getSession first (reads from cookie, no network round-trip),
+  // then validate with getUser only for protected/auth routes.
+  const { data: { session } } = await supabase.auth.getSession();
+  let user = null;
 
+  const pathname = request.nextUrl.pathname;
+  const isAuthRoute =
+    pathname.startsWith("/giris") ||
+    pathname.startsWith("/kayit") ||
+    pathname.startsWith("/sifre-sifirla");
+
+  const isDashboardRoute =
+    pathname === "/" ||
+    pathname.startsWith("/ai-studio") ||
+    pathname.startsWith("/abonelik") ||
+    pathname.startsWith("/ayarlar");
+
+  if (isDashboardRoute || isAuthRoute) {
+    if (session) {
+      const { data: { user: validatedUser } } = await supabase.auth.getUser();
+      user = validatedUser;
+    }
+  }
+
+  if (isDashboardRoute && !user) {
+    const loginUrl = new URL("/giris", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isProtectedPanelPath(pathname)) {
-    const response = NextResponse.next();
-    response.cookies.set(PANEL_LAST_PATH_COOKIE_NAME, redirectPath, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 6,
-    });
-
-    return response;
+  if (isAuthRoute && user) {
+    const homeUrl = new URL("/", request.url);
+    return NextResponse.redirect(homeUrl);
   }
 
-  return NextResponse.next();
+  return supabaseResponse;
 }
 
 export const config = {
   matcher: [
-    "/",
-    "/ekip/:path*",
-    "/ai-studio/:path*",
-    "/abonelik/:path*",
-    "/cop-kutusu/:path*",
-    "/ayarlar/:path*",
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

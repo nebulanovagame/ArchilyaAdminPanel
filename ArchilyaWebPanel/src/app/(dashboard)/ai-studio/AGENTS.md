@@ -9,8 +9,8 @@
 ## Jobs and services
 
 - Client-side image/PDF preparation and callable queuing live in `src/services/nano-banana-service.ts`.
-- Job documents may be observed in `users/{uid}/aiStudioJobs/{jobId}` using `src/lib/ai-studio/job-contract.ts` helpers.
-- Keep fallback callable-name behavior in `nano-banana-service.ts` unless backend deployment has been updated and tests prove the old names are no longer needed.
+- Job documents live in Supabase `ai_studio_jobs` table; use `src/hooks/use-ai-studio-job.ts` which wraps `useRealtimeDoc` for realtime observation.
+- Keep callable-name behavior in `nano-banana-service.ts` aligned with WebBackend endpoints.
 
 ## UI/i18n
 

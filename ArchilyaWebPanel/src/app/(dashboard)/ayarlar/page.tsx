@@ -12,7 +12,7 @@ import toast from "react-hot-toast";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { getFirebaseAuthErrorMessage } from "@/lib/firebase/auth-errors";
+import { getSupabaseAuthErrorMessage } from "@/lib/supabase/auth-errors";
 import { updateWorkspaceBrandingSecure, uploadWorkspaceLogoSecure } from "@/services/entitlement-service";
 
 function validatePasswordPolicy(password: string): boolean {
@@ -121,7 +121,7 @@ export default function AyarlarPage() {
       setDisplayNameTouched(false);
       router.refresh();
     } catch (error) {
-      toast.error(getFirebaseAuthErrorMessage(error));
+      toast.error(getSupabaseAuthErrorMessage(error));
     } finally {
       setProfileLoading(false);
     }
@@ -146,7 +146,7 @@ export default function AyarlarPage() {
       toast.success(t("dashboard.settings.verificationSent"));
       setEmailPassword("");
     } catch (error) {
-      toast.error(getFirebaseAuthErrorMessage(error));
+      toast.error(getSupabaseAuthErrorMessage(error));
     } finally {
       setEmailLoading(false);
     }
@@ -173,7 +173,7 @@ export default function AyarlarPage() {
       setNewPwd("");
       setConfirmPwd("");
     } catch (error) {
-      toast.error(getFirebaseAuthErrorMessage(error));
+      toast.error(getSupabaseAuthErrorMessage(error));
     } finally {
       setPwdLoading(false);
     }
@@ -194,7 +194,7 @@ export default function AyarlarPage() {
       router.replace("/giris");
       router.refresh();
     } catch (error) {
-      toast.error(getFirebaseAuthErrorMessage(error));
+      toast.error(getSupabaseAuthErrorMessage(error));
     } finally {
       setDeleteLoading(false);
     }

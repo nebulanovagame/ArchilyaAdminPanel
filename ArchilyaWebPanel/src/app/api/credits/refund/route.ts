@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getOptionalSessionUser } from "@/lib/auth/session";
-import { callFirebaseCallableFromServer, requireVerifiedFirebaseIdentity } from "@/lib/firebase/callable-server";
+import { callBackendCallableFromServer, requireVerifiedSupabaseIdentity } from "@/lib/supabase/callable";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { withRateLimit } from "@/lib/api/rate-limit";
 import { validateRequestBody, creditMutationBodySchema } from "@/lib/api/validation";
@@ -16,10 +16,10 @@ async function handler(request: Request) {
   }
 
   try {
-    const { idToken, workspaceId, amount, description } = validated.data;
-    const firebaseUser = await requireVerifiedFirebaseIdentity(sessionUser, idToken);
-    await requireWorkspacePermission(firebaseUser.uid, workspaceId, "workspace.billing");
-    await callFirebaseCallableFromServer("refundCredits", idToken, { amount, description });
+    const { accessToken, workspaceId, amount, description } = validated.data;
+    const verifiedUser = await requireVerifiedSupabaseIdentity(sessionUser, accessToken);
+    await requireWorkspacePermission(verifiedUser.uid, workspaceId, "workspace.billing");
+    await callBackendCallableFromServer("refundCredits", accessToken, { amount, description });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

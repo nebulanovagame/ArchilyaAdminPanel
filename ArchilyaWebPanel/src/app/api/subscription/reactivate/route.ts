@@ -1,8 +1,7 @@
-import { updateDoc } from "firebase/firestore";
 import { NextResponse } from "next/server";
 
 import { getOptionalSessionUser } from "@/lib/auth/session";
-import { requireVerifiedFirebaseIdentity } from "@/lib/firebase/callable-server";
+import { requireVerifiedSupabaseIdentity } from "@/lib/supabase/callable";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { withRateLimit } from "@/lib/api/rate-limit";
 import { validateRequestBody, subscriptionReactivateBodySchema } from "@/lib/api/validation";
@@ -19,11 +18,11 @@ async function handler(request: Request) {
   }
 
   try {
-    const { idToken, workspaceId } = validated.data;
+    const { accessToken, workspaceId } = validated.data;
 
-    const firebaseUser = await requireVerifiedFirebaseIdentity(sessionUser, idToken);
-    await requireWorkspacePermission(firebaseUser.uid, workspaceId, "workspace.billing");
-    const { ref, state } = await getUserSubscriptionDocument(firebaseUser.uid);
+    const verifiedUser = await requireVerifiedSupabaseIdentity(sessionUser, accessToken);
+    await requireWorkspacePermission(verifiedUser.uid, workspaceId, "workspace.billing");
+    const { state } = await getUserSubscriptionDocument(verifiedUser.uid);
     const canReactivate = state.status === "cancelled"
       && state.endAt instanceof Date
       && state.endAt.getTime() > Date.now();
@@ -35,11 +34,12 @@ async function handler(request: Request) {
       );
     }
 
-    await updateDoc(ref, buildSubscriptionMirrorUpdate({
-      autoRenew: true,
-      cancelledAt: null,
-      status: "active",
-    }));
+    const { createClient } = await import("@/lib/supabase/server");
+    const supabase = await createClient();
+    await supabase
+      .from("users")
+      .update(buildSubscriptionMirrorUpdate({ autoRenew: true, cancelledAt: null, status: "active" }))
+      .eq("id", verifiedUser.uid);
 
     return NextResponse.json({
       success: true,

@@ -1,3 +1,33 @@
+const IS_LOCAL_DEVELOPMENT_HOST = ["localhost", "127.0.0.1", "::1"].includes(
+  self.location.hostname,
+);
+
+if (IS_LOCAL_DEVELOPMENT_HOST) {
+  self.addEventListener("install", (event) => {
+    event.waitUntil(self.skipWaiting());
+  });
+
+  self.addEventListener("activate", (event) => {
+    event.waitUntil(
+      caches
+        .keys()
+        .then((keys) =>
+          Promise.all(
+            keys
+              .filter((key) => key.startsWith("archilya-"))
+              .map((key) => caches.delete(key)),
+          ),
+        )
+        .then(() => self.registration.unregister())
+        .then(() => self.clients.matchAll({ type: "window" }))
+        .then((clients) => {
+          for (const client of clients) {
+            client.navigate(client.url);
+          }
+        }),
+    );
+  });
+} else {
 const CACHE_NAME = "archilya-panel-v2";
 const STATIC_CACHE = "archilya-static-v2";
 const IMAGE_CACHE = "archilya-images-v2";
@@ -131,3 +161,4 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+}

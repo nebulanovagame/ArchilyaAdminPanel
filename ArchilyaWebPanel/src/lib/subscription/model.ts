@@ -1,5 +1,3 @@
-import type { Timestamp } from "firebase/firestore";
-
 import type { UserSubscriptionState } from "@/hooks/use-credits";
 
 function toDate(value: unknown) {
@@ -12,8 +10,8 @@ function toDate(value: unknown) {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
-  if (value && typeof value === "object" && "toDate" in value && typeof (value as Timestamp).toDate === "function") {
-    const parsed = (value as Timestamp).toDate();
+  if (value && typeof value === "object" && "toDate" in value && typeof (value as { toDate: () => Date }).toDate === "function") {
+    const parsed = (value as { toDate: () => Date }).toDate();
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 

@@ -1,213 +1,180 @@
-import {
-  addDoc,
-  arrayRemove,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  increment,
-  limit,
-  onSnapshot,
-  query,
-  runTransaction,
-  serverTimestamp,
-  orderBy,
-  updateDoc,
-  where,
-  writeBatch,
-  type Unsubscribe,
-  type WithFieldValue,
-} from "firebase/firestore";
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytesResumable,
-} from "firebase/storage";
+import { createClient } from "@/lib/supabase/client";
 
-import { getFirebaseFirestore, getFirebaseStorage } from "@/lib/firebase/client";
-
-import { projectConverter } from "./mapper";
 import {
-  formatDateValue,
   getDefaultFileCount,
-  getFileStableId,
   getFileTypeKey,
-  mapDeletedFiles,
-  shouldRetainTrashItem,
 } from "./model";
-import type { CreateProjectInput, ProjectFileRecord, ProjectRecord, TrashData } from "./types";
-
-type ProjectCreateDocument = WithFieldValue<ProjectRecord> & Record<string, unknown>;
-
-function projectsCollection() {
-  return collection(getFirebaseFirestore(), "projects").withConverter(projectConverter);
-}
-
-function projectDoc(projectId: string) {
-  return doc(getFirebaseFirestore(), "projects", projectId).withConverter(projectConverter);
-}
+import { mapProjectDocument } from "./mapper";
+import type { CreateProjectInput, ProjectRecord } from "./types";
 
 function sanitizeFileName(name: string): string {
   if (!name || typeof name !== "string") {
     return "file";
   }
 
-  // 1. Normalize unicode (NFKD decomposes combined chars)
   let sanitized = name.normalize("NFKD");
-
-  // 2. Remove control chars, zero-width chars, and invisible formatting
   sanitized = sanitized.replace(/[\x00-\x1f\x7f-\x9f\u200b-\u200f\u2060\ufeff]/g, "");
-
-  // 3. Replace path separators and dangerous chars with underscore
   sanitized = sanitized.replace(/[\\/:*?"<>|]/g, "_");
-
-  // 4. Replace whitespace sequences with single dash
   sanitized = sanitized.replace(/\s+/g, "-");
-
-  // 5. Collapse consecutive dots to single dot (prevents "...." tricks)
   sanitized = sanitized.replace(/\.{2,}/g, ".");
-
-  // 6. Remove leading dots/dashes (prevents hidden files, traversal)
   sanitized = sanitized.replace(/^[.-]+/, "");
-
-  // 7. Only allow safe ASCII chars in final output
   sanitized = sanitized.replace(/[^a-zA-Z0-9._-]/g, "_");
-
-  // 8. Remove trailing dots/spaces
   sanitized = sanitized.replace(/[.\s]+$/, "");
-
-  // 9. Ensure we have something left; fallback to 'file'
   if (!sanitized) {
     return "file";
   }
-
-  // 10. Prevent reserved Windows filenames (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
   const reserved = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i;
   if (reserved.test(sanitized)) {
     sanitized = "_" + sanitized;
   }
-
   return sanitized;
 }
 
 export async function addProjectActivityLog(
+  _db: unknown,
   projectId: string,
   entry: { action: string; user: string; details: string },
 ) {
-  const db = getFirebaseFirestore();
-  const logsRef = collection(db, "projects", projectId, "activityLogs");
-  await addDoc(logsRef, {
-    ...entry,
-    timestamp: serverTimestamp(),
-  });
-}
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("project_activity_logs")
+    .insert({
+      project_id: projectId,
+      action: entry.action,
+      user_name: entry.user,
+      details: entry.details,
+      timestamp: new Date().toISOString(),
+    });
 
-function cleanDeletedFile(file: ProjectFileRecord): ProjectFileRecord {
-  const cleanFile: ProjectFileRecord = { ...file };
-  delete cleanFile.deletedAt;
-  delete cleanFile.projectId;
-  delete cleanFile.projectName;
-  return cleanFile;
-}
-
-function groupTrashFileItems(items: Array<{ projectId: string; file: ProjectFileRecord }>) {
-  const grouped = new Map<string, ProjectFileRecord[]>();
-
-  for (const item of items) {
-    const current = grouped.get(item.projectId) || [];
-    const fileId = getFileStableId(item.file);
-
-    if (!current.some((file) => getFileStableId(file) === fileId)) {
-      current.push(item.file);
-    }
-
-    grouped.set(item.projectId, current);
+  if (error) {
+    console.warn("[projects] addProjectActivityLog error:", error.message);
   }
-
-  return grouped;
 }
+
+/* ─── Watchers (Realtime) ─────────────────────────────────────────────────── */
 
 export function watchActiveProjects(
   uid: string,
   onData: (projects: ProjectRecord[]) => void,
   onError: (error: Error) => void,
-): Unsubscribe {
-  const q = query(
-    projectsCollection(),
-    where("memberUids", "array-contains", uid),
-    where("isDeleted", "==", false),
-    orderBy("updatedAt", "desc"),
-    limit(100),
-  );
+): () => void {
+  const supabase = createClient();
 
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const projects = snapshot.docs.map((docSnap) => docSnap.data());
+  async function fetchAndNotify() {
+    const { data, error } = await supabase
+      .from("projects")
+      .select("*, project_team_members!inner(user_uid)")
+      .eq("project_team_members.user_uid", uid)
+      .eq("is_deleted", false)
+      .order("updated_at", { ascending: false })
+      .limit(100);
 
-      onData(projects);
-    },
-    (error) => onError(error),
-  );
+    if (error) {
+      onError(new Error(error.message));
+      return;
+    }
+
+    const projects = (data || []).map((row) => mapProjectDocument(String(row.id), row as Record<string, unknown>));
+
+    onData(projects);
+  }
+
+  void fetchAndNotify();
+
+  const channel = supabase
+    .channel("active-projects-" + uid)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "projects" },
+      () => { void fetchAndNotify(); },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "project_team_members" },
+      () => { void fetchAndNotify(); },
+    )
+    .subscribe((status, err) => {
+      if (status === "CHANNEL_ERROR" && err) {
+        onError(new Error(String(err)));
+      }
+    });
+
+  return () => { void supabase.removeChannel(channel); };
 }
 
-export async function fetchActiveProjects(uid: string) {
-  const q = query(
-    projectsCollection(),
-    where("memberUids", "array-contains", uid),
-    where("isDeleted", "==", false),
-    orderBy("updatedAt", "desc"),
-    limit(100),
-  );
-  const snapshot = await getDocs(q);
+export async function fetchActiveProjects(uid: string): Promise<ProjectRecord[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .select("*, project_team_members!inner(user_uid)")
+    .eq("project_team_members.user_uid", uid)
+    .eq("is_deleted", false)
+    .order("updated_at", { ascending: false })
+    .limit(100);
 
-  return snapshot.docs.map((docSnap) => docSnap.data());
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data || []).map((row) => mapProjectDocument(String(row.id), row as Record<string, unknown>));
 }
+
+/* ─── Create ──────────────────────────────────────────────────────────────── */
 
 export async function createProject(
   uid: string,
   ownerEmail: string | null,
   ownerName: string,
   input: CreateProjectInput,
-) {
-  const createdAt = new Date();
-  const newProject: ProjectCreateDocument = {
-    id: "",
-    uid,
-    memberUids: [uid],
-    name: input.name.trim(),
-    location: input.location?.trim() || "",
-    status: input.status,
-    fileCount: getDefaultFileCount(),
-    totalSize: 0,
-    files: [],
-    deletedFiles: [],
-    // activityLog moved to subcollection — see addProjectActivityLog
-    team: [
-      {
-        uid,
-        email: ownerEmail,
-        role: "owner",
-      },
-    ],
-    invites: [],
-    isDeleted: false,
-    deletedAt: null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-  const docRef = await addDoc(projectsCollection(), newProject);
+): Promise<ProjectRecord> {
+  const supabase = createClient();
+  const createdAt = new Date().toISOString();
 
-  await addProjectActivityLog(docRef.id, {
+  const { data: projectData, error: projectError } = await supabase
+    .from("projects")
+    .insert({
+      uid,
+      name: input.name.trim(),
+      location: input.location?.trim() || "",
+      status: input.status,
+      file_count: getDefaultFileCount(),
+      total_size: 0,
+      is_deleted: false,
+      deleted_at: null,
+      created_at: createdAt,
+      updated_at: createdAt,
+    })
+    .select()
+    .single();
+
+  if (projectError || !projectData) {
+    throw new Error(projectError?.message || "Proje oluşturulamadı.");
+  }
+
+  const projectId = projectData.id;
+
+  // Add owner to project_team_members
+  const { error: memberError } = await supabase
+    .from("project_team_members")
+    .insert({
+      project_id: projectId,
+      user_uid: uid,
+      email: ownerEmail,
+      role: "owner",
+    });
+
+  if (memberError) {
+    console.warn("[projects] createProject member insert error:", memberError.message);
+  }
+
+  await addProjectActivityLog(supabase, projectId, {
     action: "create",
     user: ownerName || ownerEmail || "Kullanıcı",
     details: "Proje oluşturuldu.",
   });
 
   return {
-    id: docRef.id,
+    id: projectId,
     uid,
     memberUids: [uid],
     name: input.name.trim(),
@@ -219,60 +186,51 @@ export async function createProject(
     deletedFiles: [],
     isDeleted: false,
     deletedAt: null,
-    createdAt,
-    updatedAt: createdAt,
-  } satisfies ProjectRecord;
+    createdAt: new Date(createdAt),
+    updatedAt: new Date(createdAt),
+  };
 }
 
+/* ─── Soft Delete ─────────────────────────────────────────────────────────── */
+
 export async function softDeleteProject(projectId: string) {
-  await updateDoc(projectDoc(projectId), {
-    isDeleted: true,
-    deletedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({
+      is_deleted: true,
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", projectId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function batchSoftDeleteProjects(projectIds: string[]) {
   if (!projectIds.length) return;
 
-  const db = getFirebaseFirestore();
-  const batch = writeBatch(db);
+  const supabase = createClient();
+  const now = new Date().toISOString();
 
-  for (const projectId of projectIds) {
-    batch.update(projectDoc(projectId), {
-      isDeleted: true,
-      deletedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+  const updates = projectIds.map((id) =>
+    supabase
+      .from("projects")
+      .update({ is_deleted: true, deleted_at: now, updated_at: now })
+      .eq("id", id),
+  );
+
+  const results = await Promise.all(updates);
+  const firstError = results.find((r) => r.error)?.error;
+  if (firstError) {
+    throw new Error(firstError.message);
   }
-
-  await batch.commit();
 }
 
-export async function restoreProject(projectId: string) {
-  await updateDoc(projectDoc(projectId), {
-    isDeleted: false,
-    deletedAt: null,
-    updatedAt: serverTimestamp(),
-  });
-}
 
-export async function batchRestoreProjects(projectIds: string[]) {
-  if (!projectIds.length) return;
-
-  const db = getFirebaseFirestore();
-  const batch = writeBatch(db);
-
-  for (const projectId of projectIds) {
-    batch.update(projectDoc(projectId), {
-      isDeleted: false,
-      deletedAt: null,
-      updatedAt: serverTimestamp(),
-    });
-  }
-
-  await batch.commit();
-}
+/* ─── File Upload ─────────────────────────────────────────────────────────── */
 
 export async function uploadProjectFiles(
   project: ProjectRecord,
@@ -283,396 +241,133 @@ export async function uploadProjectFiles(
 ) {
   if (!files.length) return;
 
-  const storage = getFirebaseStorage();
-  const refDoc = doc(getFirebaseFirestore(), "projects", project.id);
-  const currentSnapshot = await getDoc(refDoc);
-
-  if (!currentSnapshot.exists()) {
-    throw new Error("Proje bulunamadı.");
-  }
+  const supabase = createClient();
 
   for (const file of files) {
     const safeName = sanitizeFileName(file.name);
     const storagePath = `users/${ownerUid}/projects/${project.id}/${Date.now()}_${safeName}`;
-    const fileRef = ref(storage, storagePath);
 
-    await new Promise<void>((resolve, reject) => {
-      const task = uploadBytesResumable(fileRef, file, {
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from("projects")
+      .upload(storagePath, file, {
         contentType: file.type || undefined,
-        cacheControl: 'public, max-age=31536000, immutable',
+        cacheControl: "public, max-age=31536000, immutable",
       });
 
-      task.on(
-        "state_changed",
-        (snapshot) => {
-          if (!onProgress || snapshot.totalBytes === 0) return;
-          onProgress(file.name, Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
-        },
-        reject,
-        () => resolve(),
-      );
-    });
+    if (uploadError) {
+      throw new Error(`${file.name} yüklenemedi: ${uploadError.message}`);
+    }
 
-    const url = await getDownloadURL(fileRef);
+    // Get public URL
+    const { data: urlData } = supabase.storage.from("projects").getPublicUrl(storagePath);
+    const url = urlData.publicUrl;
     const typeKey = getFileTypeKey(file.type || file.name);
 
-    await runTransaction(getFirebaseFirestore(), async (transaction) => {
-      const snapshot = await transaction.get(refDoc);
+    // Check for existing file with same name
+    const { data: existingFiles } = await supabase
+      .from("project_files")
+      .select("*")
+      .eq("project_id", project.id)
+      .eq("name", file.name)
+      .eq("is_deleted", false);
 
-      if (!snapshot.exists()) {
-        throw new Error("Proje bulunamadı.");
+    const existing = existingFiles?.[0];
+
+    if (existing) {
+      // Create version record
+      const { error: versionError } = await supabase
+        .from("project_file_versions")
+        .insert({
+          file_id: existing.id,
+          version: ((existing.versions?.length || 0) + 1),
+          url: existing.url,
+          path: existing.path,
+          storage_provider: existing.storage_provider || "supabase",
+          object_key: existing.object_key,
+          content_type: existing.content_type,
+          size: existing.size,
+          created_at: existing.created_at || new Date().toISOString(),
+        });
+
+      if (versionError) {
+        console.warn("[projects] version insert error:", versionError.message);
       }
 
-      const data = snapshot.data();
-      const currentFiles = Array.isArray(data.files) ? (data.files as ProjectFileRecord[]) : [];
-      const existingIdx = currentFiles.findIndex((existingFile) => existingFile.name === file.name);
-      const newFilesList = [...currentFiles];
-      let sizeIncrement = file.size;
-      let countIncrement = 1;
-
-      if (existingIdx >= 0) {
-        const oldFile = currentFiles[existingIdx];
-        sizeIncrement = file.size - (oldFile.size || 0);
-        countIncrement = 0;
-        const previousVersion = {
-          url: oldFile.url,
-          path: oldFile.path || null,
-          storageProvider: oldFile.storageProvider || "firebase",
-          objectKey: oldFile.objectKey || null,
-          contentType: oldFile.contentType || "",
-          size: oldFile.size,
-          createdAt: oldFile.createdAt || new Date().toISOString(),
-          version: (oldFile.versions?.length || 0) + 1,
-        };
-
-        newFilesList[existingIdx] = {
-          ...oldFile,
+      // Update existing file
+      const { error: updateError } = await supabase
+        .from("project_files")
+        .update({
           url,
           path: storagePath,
           size: file.size,
           type: file.type || file.name.split(".")[1]?.toLowerCase() || "dosya",
-          storageProvider: "firebase",
-          contentType: file.type,
-          createdAt: new Date().toISOString(),
-          versions: [...(oldFile.versions || []), previousVersion],
-        };
-      } else {
-        newFilesList.push({
+          storage_provider: "supabase",
+          content_type: file.type,
+          created_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+    } else {
+      // Insert new file
+      const { error: insertError } = await supabase
+        .from("project_files")
+        .insert({
+          project_id: project.id,
           name: file.name,
           url,
           size: file.size,
           type: file.type || file.name.split(".")[1]?.toLowerCase() || "dosya",
           path: storagePath,
-          storageProvider: "firebase",
-          contentType: file.type,
-          createdAt: new Date().toISOString(),
-          versions: [],
+          storage_provider: "supabase",
+          content_type: file.type,
+          created_at: new Date().toISOString(),
         });
+
+      if (insertError) {
+        throw new Error(insertError.message);
       }
+    }
 
-      transaction.update(refDoc, {
-        files: newFilesList,
-        [`fileCount.${typeKey}`]: increment(countIncrement),
-        totalSize: increment(sizeIncrement),
-        updatedAt: serverTimestamp(),
-      });
-    });
+    // Update project file_count and total_size
+    const { data: projectData } = await supabase
+      .from("projects")
+      .select("file_count, total_size")
+      .eq("id", project.id)
+      .single();
 
-    await addProjectActivityLog(project.id, {
+    const currentCount = projectData?.file_count as Record<string, number> || { pdf: 0, dwg: 0, img: 0 };
+    const currentSize = (projectData?.total_size as number) || 0;
+
+    const newCount = { ...currentCount };
+    if (!existing) {
+      newCount[typeKey] = (newCount[typeKey] || 0) + 1;
+    }
+
+    const { error: projectUpdateError } = await supabase
+      .from("projects")
+      .update({
+        file_count: newCount,
+        total_size: existing ? currentSize + file.size - (existing.size || 0) : currentSize + file.size,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", project.id);
+
+    if (projectUpdateError) {
+      throw new Error(projectUpdateError.message);
+    }
+
+    if (onProgress) {
+      onProgress(file.name, 100);
+    }
+
+    await addProjectActivityLog(supabase, project.id, {
       action: "upload",
       user: ownerName,
       details: `${file.name} dosyası yüklendi.`,
     });
   }
-}
-
-export async function hardDeleteProject(project: ProjectRecord) {
-  const storage = getFirebaseStorage();
-  const allFiles = [...(project.files || []), ...(project.deletedFiles || [])];
-
-  for (const file of allFiles) {
-    if (file.path) {
-      await deleteObject(ref(storage, file.path)).catch(() => undefined);
-    }
-  }
-
-  await deleteDoc(projectDoc(project.id));
-}
-
-export async function batchHardDeleteProjects(projects: ProjectRecord[]) {
-  if (!projects.length) return;
-
-  const storage = getFirebaseStorage();
-
-  for (const project of projects) {
-    const allFiles = [...(project.files || []), ...(project.deletedFiles || [])];
-
-    for (const file of allFiles) {
-      if (file.path) {
-        await deleteObject(ref(storage, file.path)).catch(() => undefined);
-      }
-    }
-  }
-
-  const db = getFirebaseFirestore();
-  const batch = writeBatch(db);
-
-  for (const project of projects) {
-    batch.delete(projectDoc(project.id));
-  }
-
-  await batch.commit();
-}
-
-export function watchTrashData(
-  uid: string,
-  onData: (data: TrashData) => void,
-  onError: (error: Error) => void,
-): Unsubscribe {
-  const q = query(
-    projectsCollection(),
-    where("memberUids", "array-contains", uid),
-    limit(100),
-  );
-
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const allProjects = snapshot.docs.map((docSnap) => docSnap.data());
-
-      const deletedProjects = allProjects
-        .filter((project) => project.isDeleted && project.uid === uid && shouldRetainTrashItem(project.deletedAt))
-        .sort((a, b) => {
-          const left = formatDateValue(a.deletedAt)?.getTime() || 0;
-          const right = formatDateValue(b.deletedAt)?.getTime() || 0;
-          return right - left;
-        });
-
-      const activeProjectsWithDeletedFiles = allProjects.filter(
-        (project) => !project.isDeleted && (project.deletedFiles?.length || 0) > 0,
-      );
-
-      // Keep client-side sorting here unless a supporting composite index is confirmed.
-      const deletedFiles = mapDeletedFiles(activeProjectsWithDeletedFiles).sort((a, b) => {
-        const left = formatDateValue(a.deletedAt)?.getTime() || 0;
-        const right = formatDateValue(b.deletedAt)?.getTime() || 0;
-        return right - left;
-      });
-
-      onData({ deletedProjects, deletedFiles });
-    },
-    (error) => onError(error),
-  );
-}
-
-export async function fetchTrashData(uid: string): Promise<TrashData> {
-  const q = query(
-    projectsCollection(),
-    where("memberUids", "array-contains", uid),
-    limit(100),
-  );
-  const snapshot = await getDocs(q);
-  const allProjects = snapshot.docs.map((docSnap) => docSnap.data());
-
-  const deletedProjects = allProjects
-    .filter((project) => project.isDeleted && project.uid === uid && shouldRetainTrashItem(project.deletedAt))
-    .sort((a, b) => {
-      const left = formatDateValue(a.deletedAt)?.getTime() || 0;
-      const right = formatDateValue(b.deletedAt)?.getTime() || 0;
-      return right - left;
-    });
-
-  const activeProjectsWithDeletedFiles = allProjects.filter(
-    (project) => !project.isDeleted && (project.deletedFiles?.length || 0) > 0,
-  );
-
-  const deletedFiles = mapDeletedFiles(activeProjectsWithDeletedFiles).sort((a, b) => {
-    const left = formatDateValue(a.deletedAt)?.getTime() || 0;
-    const right = formatDateValue(b.deletedAt)?.getTime() || 0;
-    return right - left;
-  });
-
-  return { deletedProjects, deletedFiles };
-}
-
-export async function restoreDeletedFile(projectId: string, file: ProjectFileRecord) {
-  const refDoc = projectDoc(projectId);
-  const fileId = getFileStableId(file);
-
-  await runTransaction(getFirebaseFirestore(), async (transaction) => {
-    const snapshot = await transaction.get(refDoc);
-
-    if (!snapshot.exists()) {
-      throw new Error("Proje bulunamadı.");
-    }
-
-    const data = snapshot.data();
-    const deletedFiles = Array.isArray(data.deletedFiles) ? (data.deletedFiles as ProjectFileRecord[]) : [];
-    const originalDeleted = deletedFiles.find(
-      (deletedFile) => getFileStableId(deletedFile) === fileId,
-    );
-
-    if (!originalDeleted) {
-      throw new Error("Dosya çöp kutusunda bulunamadı.");
-    }
-
-    const cleanFile = {
-      ...originalDeleted,
-      deletedAt: undefined,
-      projectId: undefined,
-      projectName: undefined,
-    };
-    const typeKey = getFileTypeKey(originalDeleted.type || originalDeleted.name);
-    const currentFiles = Array.isArray(data.files) ? (data.files as ProjectFileRecord[]) : [];
-
-    transaction.update(refDoc, {
-      deletedFiles: arrayRemove(originalDeleted),
-      files: [...currentFiles, cleanFile],
-      [`fileCount.${typeKey}`]: increment(1),
-      totalSize: increment(cleanFile.size || 0),
-      updatedAt: serverTimestamp(),
-    });
-  });
-}
-
-export async function batchRestoreFiles(items: Array<{ projectId: string; file: ProjectFileRecord }>) {
-  if (!items.length) return;
-
-  const grouped = groupTrashFileItems(items);
-  const db = getFirebaseFirestore();
-  const batch = writeBatch(db);
-
-  const projectSnapshots = await Promise.all(
-    Array.from(grouped.entries()).map(async ([projectId, files]) => ({
-      projectId,
-      files,
-      snapshot: await getDoc(projectDoc(projectId)),
-    })),
-  );
-
-  for (const { projectId, files, snapshot } of projectSnapshots) {
-    if (!snapshot.exists()) {
-      throw new Error("Proje bulunamadı.");
-    }
-
-    const refDoc = projectDoc(projectId);
-    const project = snapshot.data();
-    const deletedFiles = project.deletedFiles || [];
-    const filesToRestore: ProjectFileRecord[] = [];
-    const nextFiles = [...(project.files || [])];
-    const fileCountIncrement = { pdf: 0, dwg: 0, img: 0 };
-    let totalSizeIncrement = 0;
-
-    for (const file of files) {
-      const fileId = getFileStableId(file);
-      const originalDeleted = deletedFiles.find((deletedFile) => getFileStableId(deletedFile) === fileId);
-
-      if (!originalDeleted) {
-        throw new Error("Dosya çöp kutusunda bulunamadı.");
-      }
-
-      const cleanFile = cleanDeletedFile(originalDeleted);
-      const typeKey = getFileTypeKey(originalDeleted.type || originalDeleted.name);
-
-      filesToRestore.push(originalDeleted);
-      nextFiles.push(cleanFile);
-      fileCountIncrement[typeKey] += 1;
-      totalSizeIncrement += cleanFile.size || 0;
-    }
-
-    batch.update(refDoc, {
-      deletedFiles: arrayRemove(...filesToRestore),
-      files: nextFiles,
-      "fileCount.pdf": increment(fileCountIncrement.pdf),
-      "fileCount.dwg": increment(fileCountIncrement.dwg),
-      "fileCount.img": increment(fileCountIncrement.img),
-      totalSize: increment(totalSizeIncrement),
-      updatedAt: serverTimestamp(),
-    });
-  }
-
-  await batch.commit();
-}
-
-export async function permanentlyDeleteFile(projectId: string, file: ProjectFileRecord) {
-  const refDoc = projectDoc(projectId);
-  const snapshot = await getDoc(refDoc);
-
-  if (!snapshot.exists()) {
-    throw new Error("Proje bulunamadı.");
-  }
-
-  const project = snapshot.data();
-  const fileId = getFileStableId(file);
-  const originalDeleted = (project.deletedFiles || []).find(
-    (deletedFile) => getFileStableId(deletedFile) === fileId,
-  );
-
-  if (!originalDeleted) {
-    throw new Error("Dosya bulunamadı.");
-  }
-
-  if (originalDeleted.path) {
-    await deleteObject(ref(getFirebaseStorage(), originalDeleted.path)).catch(() => undefined);
-  }
-
-  await updateDoc(refDoc, {
-    deletedFiles: arrayRemove(originalDeleted),
-    updatedAt: serverTimestamp(),
-  });
-}
-
-export async function batchPermanentlyDeleteFiles(items: Array<{ projectId: string; file: ProjectFileRecord }>) {
-  if (!items.length) return;
-
-  const grouped = groupTrashFileItems(items);
-  const storage = getFirebaseStorage();
-  const db = getFirebaseFirestore();
-  const batch = writeBatch(db);
-
-  const projectSnapshots = await Promise.all(
-    Array.from(grouped.entries()).map(async ([projectId, files]) => ({
-      projectId,
-      files,
-      snapshot: await getDoc(projectDoc(projectId)),
-    })),
-  );
-
-  const filesToDeleteFromStorage: ProjectFileRecord[] = [];
-
-  for (const { projectId, files, snapshot } of projectSnapshots) {
-    if (!snapshot.exists()) {
-      throw new Error("Proje bulunamadı.");
-    }
-
-    const refDoc = projectDoc(projectId);
-    const project = snapshot.data();
-    const deletedFiles = project.deletedFiles || [];
-    const filesToRemove: ProjectFileRecord[] = [];
-
-    for (const file of files) {
-      const fileId = getFileStableId(file);
-      const originalDeleted = deletedFiles.find((deletedFile) => getFileStableId(deletedFile) === fileId);
-
-      if (!originalDeleted) {
-        throw new Error("Dosya bulunamadı.");
-      }
-
-      filesToRemove.push(originalDeleted);
-      filesToDeleteFromStorage.push(originalDeleted);
-    }
-
-    batch.update(refDoc, {
-      deletedFiles: arrayRemove(...filesToRemove),
-      updatedAt: serverTimestamp(),
-    });
-  }
-
-  for (const file of filesToDeleteFromStorage) {
-    if (file.path) {
-      await deleteObject(ref(storage, file.path)).catch(() => undefined);
-    }
-  }
-
-  await batch.commit();
 }

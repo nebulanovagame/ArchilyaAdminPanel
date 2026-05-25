@@ -5,11 +5,8 @@ import { useTranslations } from "next-intl";
 
 function getBreadcrumb(pathname: string) {
   if (pathname === "/") return "overview";
-  if (pathname === "/ekip") return "team";
   if (pathname === "/ai-studio") return "aiStudio";
-  if (pathname === "/archilya-render") return "archilyaRender";
   if (pathname === "/abonelik") return "subscription";
-  if (pathname === "/cop-kutusu") return "trash";
   if (pathname === "/ayarlar") return "settings";
   return "overview";
 }

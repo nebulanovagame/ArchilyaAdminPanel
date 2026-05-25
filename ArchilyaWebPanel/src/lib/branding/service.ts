@@ -1,25 +1,30 @@
-import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import type { Firestore } from "firebase/firestore";
-import type { FirebaseStorage } from "firebase/storage";
+import { createClient } from "@/lib/supabase/client";
 
 import type { BrandingUpdateInput } from "./types";
 import { sanitizeBrandingInput } from "./validation";
 import { mergeBrandingWithDefaults } from "./defaults";
 
 export async function updateWorkspaceBranding(
-  db: Firestore,
+  _db: unknown,
   workspaceId: string,
   input: BrandingUpdateInput,
 ) {
   const sanitized = sanitizeBrandingInput(input);
   const branding = mergeBrandingWithDefaults(sanitized);
 
-  const workspaceRef = doc(db, "workspaces", workspaceId);
-  await updateDoc(workspaceRef, {
-    branding,
-    updatedAt: serverTimestamp(),
-  });
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("workspaces")
+    .update({
+      branding,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workspaceId);
+
+  if (error) {
+    console.warn("[branding] updateWorkspaceBranding error:", error.message);
+    throw new Error("Marka ayarları güncellenemedi.");
+  }
 }
 
 function sanitizeFileName(name: string): string {
@@ -46,21 +51,54 @@ function sanitizeFileName(name: string): string {
 }
 
 export async function uploadWorkspaceLogo(
-  storage: FirebaseStorage,
+  _storage: unknown,
   workspaceId: string,
   file: File,
 ): Promise<string> {
   const safeName = sanitizeFileName(file.name);
   const path = `branding/${workspaceId}/logo/${Date.now()}_${safeName}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+
+  const supabase = createClient();
+  const { error } = await supabase.storage
+    .from("branding")
+    .upload(path, file);
+
+  if (error) {
+    console.warn("[branding] uploadWorkspaceLogo error:", error.message);
+    throw new Error("Logo yüklenemedi.");
+  }
+
+  const { data } = supabase.storage.from("branding").getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export async function deleteWorkspaceLogo(
-  storage: FirebaseStorage,
+  _storage: unknown,
   workspaceId: string,
 ) {
-  const logoRef = ref(storage, `branding/${workspaceId}/logo`);
-  await deleteObject(logoRef).catch(() => undefined);
+  const supabase = createClient();
+
+  // List files under the workspace logo prefix
+  const { data: listData, error: listError } = await supabase.storage
+    .from("branding")
+    .list(`branding/${workspaceId}/logo`);
+
+  if (listError) {
+    console.warn("[branding] deleteWorkspaceLogo list error:", listError.message);
+    return;
+  }
+
+  if (!listData || listData.length === 0) {
+    return;
+  }
+
+  const paths = listData.map((item) => `branding/${workspaceId}/logo/${item.name}`);
+
+  const { error } = await supabase.storage
+    .from("branding")
+    .remove(paths);
+
+  if (error) {
+    console.warn("[branding] deleteWorkspaceLogo remove error:", error.message);
+  }
 }

@@ -5,10 +5,10 @@ import { apiErrorResponse } from "@/lib/api/errors";
 import { withRateLimit } from "@/lib/api/rate-limit";
 import { idTokenSchema, validateRequestBody } from "@/lib/api/validation";
 import { getOptionalSessionUser } from "@/lib/auth/session";
-import { callFirebaseCallableFromServer, requireVerifiedFirebaseIdentity } from "@/lib/firebase/callable-server";
+import { callBackendCallableFromServer, requireVerifiedSupabaseIdentity } from "@/lib/supabase/callable";
 
 const promptHistoryBodySchema = z.object({
-  idToken: idTokenSchema,
+  accessToken: idTokenSchema,
   action: z.enum(["get", "save"]),
   toolId: z.string().min(1).max(128).optional(),
   entry: z.record(z.string(), z.unknown()).optional(),
@@ -23,13 +23,13 @@ async function handler(request: Request) {
   }
 
   try {
-    const { idToken, action, toolId, entry } = validated.data;
-    await requireVerifiedFirebaseIdentity(sessionUser, idToken);
+    const { accessToken, action, toolId, entry } = validated.data;
+    await requireVerifiedSupabaseIdentity(sessionUser, accessToken);
 
     if (action === "get") {
-      const result = await callFirebaseCallableFromServer<Record<string, never>, { success?: boolean; history?: Record<string, unknown> }>(
+      const result = await callBackendCallableFromServer<Record<string, never>, { success?: boolean; history?: Record<string, unknown> }>(
         "getAiPromptHistorySecure",
-        idToken,
+        accessToken,
         {},
       );
       return NextResponse.json({ success: Boolean(result?.success), history: result?.history || {} });
@@ -39,9 +39,9 @@ async function handler(request: Request) {
       return NextResponse.json({ error: "Prompt geçmişi kaydı için toolId ve entry zorunludur." }, { status: 400 });
     }
 
-    const result = await callFirebaseCallableFromServer<{ toolId: string; entry: Record<string, unknown> }, { success?: boolean; history?: Record<string, unknown> }>(
+    const result = await callBackendCallableFromServer<{ toolId: string; entry: Record<string, unknown> }, { success?: boolean; history?: Record<string, unknown> }>(
       "saveAiPromptHistorySecure",
-      idToken,
+      accessToken,
       { toolId, entry },
     );
 

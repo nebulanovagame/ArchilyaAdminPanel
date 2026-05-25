@@ -1,6 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
-
-export type ProjectDateValue = Date | Timestamp | null;
+export type ProjectDateValue = Date | string | null;
 
 export type ProjectStatus = "Aktif" | "İncelemede" | "Tamamlandı" | "Taslak";
 
@@ -16,7 +14,7 @@ export type ProjectFileRecord = {
   size: number;
   type: string;
   path?: string | null;
-  storageProvider?: "firebase" | "r2";
+  storageProvider?: "firebase" | "r2" | "supabase";
   objectKey?: string | null;
   contentType?: string;
   createdAt?: string;
@@ -26,7 +24,8 @@ export type ProjectFileRecord = {
   versions?: Array<{
     url: string;
     path?: string | null;
-    storageProvider?: "firebase" | "r2";
+  /** TODO: Remove "firebase" once all legacy project records are migrated from Firebase to Supabase/R2 */
+  storageProvider?: "firebase" | "r2" | "supabase";
     objectKey?: string | null;
     contentType?: string;
     size?: number;
@@ -56,17 +55,4 @@ export type CreateProjectInput = {
   name: string;
   location?: string;
   status: ProjectStatus;
-};
-
-export type OverviewStats = {
-  activeCount: number;
-  totalProjectCount: number;
-  totalFiles: number;
-  totalSize: number;
-  uniqueMemberCount: number;
-};
-
-export type TrashData = {
-  deletedProjects: ProjectRecord[];
-  deletedFiles: ProjectFileRecord[];
 };

@@ -15,9 +15,6 @@ export default function KeyboardShortcutsHandler() {
       case "navigate-ai-studio":
         router.push("/ai-studio");
         break;
-      case "create-project":
-        router.push("/?createProject=1");
-        break;
       case "open-shortcuts-help":
         openModal();
         break;

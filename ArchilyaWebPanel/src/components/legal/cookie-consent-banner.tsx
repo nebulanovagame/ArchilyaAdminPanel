@@ -11,9 +11,11 @@ export function CookieConsentBanner() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const consent = localStorage.getItem(CONSENT_KEY);
-    if (!consent) {
-      setShowBanner(true);
-    }
+    const timeoutId = window.setTimeout(() => {
+      setShowBanner(!consent);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   function handleAccept() {

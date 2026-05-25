@@ -1,13 +1,11 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { doc, type DocumentSnapshot, type Timestamp } from "firebase/firestore";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { useFirestoreDoc } from "@/hooks/use-firestore-doc";
+import { useRealtimeDoc } from "@/hooks/use-realtime-doc";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
 import { deductCreditsSecure, ensureUserProfileSecure, refundCreditsSecure } from "@/services/entitlement-service";
 
 export type UserSubscriptionState = {
@@ -42,11 +40,6 @@ function toDateString(value: unknown) {
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   }
 
-  if (value && typeof value === "object" && "toDate" in value && typeof (value as Timestamp).toDate === "function") {
-    const parsed = (value as Timestamp).toDate();
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-  }
-
   return null;
 }
 
@@ -54,32 +47,27 @@ export function useCredits() {
   const t = useTranslations();
   const { currentUser } = useAuth();
   const { activeWorkspace, deductPoolCredits, refundPoolCredits } = useWorkspace();
-  const userRef = useMemo(
-    () => (currentUser ? doc(getFirebaseFirestore(), "users", currentUser.uid) : null),
-    [currentUser],
-  );
 
-  const mapSnapshot = useCallback((snapshot: DocumentSnapshot): UserCreditsState => {
-    if (snapshot.exists()) {
-      const data = snapshot.data();
+  const mapRow = useCallback((row: Record<string, unknown>): UserCreditsState => {
+    if (row && Object.keys(row).length > 0) {
       return {
-        credits: typeof data.credits === "number" ? data.credits : 0,
-        plan: typeof data.plan === "string" ? data.plan : "free",
-        status: String(data.status || "inactive"),
-        planId: typeof data.planId === "string" ? data.planId : "",
-        startAt: toDateString(data.startAt),
-        endAt: toDateString(data.endAt),
-        autoRenew: typeof data.autoRenew === "boolean" ? data.autoRenew : false,
-        cancelledAt: toDateString(data.cancelledAt),
-        pendingPlanId: typeof data.pendingPlanId === "string" ? data.pendingPlanId : "",
-        billingCreditBalanceKurus: typeof data.billingCreditBalanceKurus === "number" ? data.billingCreditBalanceKurus : 0,
+        credits: typeof row.credits === "number" ? row.credits : 0,
+        plan: typeof row.subscription_plan === "string" ? row.subscription_plan : "free",
+        status: String(row.subscription_status || "inactive"),
+        planId: typeof row.plan_id === "string" ? row.plan_id : "",
+        startAt: toDateString(row.start_at),
+        endAt: toDateString(row.end_at),
+        autoRenew: typeof row.auto_renew === "boolean" ? row.auto_renew : false,
+        cancelledAt: toDateString(row.cancelled_at),
+        pendingPlanId: typeof row.pending_plan_id === "string" ? row.pending_plan_id : "",
+        billingCreditBalanceKurus: typeof row.billing_credit_balance_kurus === "number" ? row.billing_credit_balance_kurus : 0,
       };
     }
 
     if (currentUser) {
       void ensureUserProfileSecure({
         email: currentUser.email,
-        displayName: currentUser.displayName,
+        displayName: currentUser.name,
       });
     }
 
@@ -97,8 +85,9 @@ export function useCredits() {
     };
   }, [currentUser]);
 
-  const { data, loading } = useFirestoreDoc({
-    ref: userRef,
+  const { data, loading } = useRealtimeDoc({
+    table: "profiles",
+    id: currentUser?.uid ?? null,
     initialData: {
       credits: null as number | null,
       plan: "free",
@@ -111,7 +100,7 @@ export function useCredits() {
       pendingPlanId: "",
       billingCreditBalanceKurus: 0,
     } satisfies UserCreditsState,
-    mapSnapshot,
+    mapRow,
   });
 
   const credits = data.credits;

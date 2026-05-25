@@ -1,22 +1,16 @@
 import { NextResponse } from "next/server";
-
-import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 import { withRateLimit } from "@/lib/api/rate-limit";
 
 async function handler() {
-  const response = NextResponse.json({ ok: true });
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signOut();
 
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: "",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
 
-  return response;
+  return NextResponse.json({ ok: true });
 }
 
 export const POST = withRateLimit(handler, { limit: 20, windowMs: 60_000 });

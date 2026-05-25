@@ -1,26 +1,26 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
-import { doc, type DocumentSnapshot } from "firebase/firestore";
+import { useCallback } from "react";
 
-import { useFirestoreDoc } from "@/hooks/use-firestore-doc";
-import { AI_STUDIO_JOB_SUBCOLLECTION, INITIAL_AI_STUDIO_JOB, mapAiStudioJobSnapshot } from "@/lib/ai-studio/job-contract";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
+import { useRealtimeDoc } from "@/hooks/use-realtime-doc";
+import { INITIAL_AI_STUDIO_JOB, isAiStudioJobTerminal, mapAiStudioJobSnapshot } from "@/lib/ai-studio/job-contract";
 
 export function useAiStudioJob(uid: string | null, jobId: string | null) {
-  const jobRef = useMemo(
-    () => (uid && jobId ? doc(getFirebaseFirestore(), "users", uid, AI_STUDIO_JOB_SUBCOLLECTION, jobId) : null),
-    [jobId, uid],
-  );
-
-  const mapSnapshot = useCallback((snapshot: DocumentSnapshot) => {
-    return mapAiStudioJobSnapshot(snapshot, jobId || "");
+  const mapRow = useCallback((row: Record<string, unknown>) => {
+    return mapAiStudioJobSnapshot({
+      id: String(row.id || jobId || ""),
+      data: () => row,
+      exists: true,
+    } as never, jobId || "");
   }, [jobId]);
 
-  return useFirestoreDoc({
-    ref: jobRef,
+  return useRealtimeDoc({
+    table: "ai_studio_jobs",
+    id: jobId,
     initialData: INITIAL_AI_STUDIO_JOB,
-    mapSnapshot,
+    mapRow,
+    shouldPoll: (job) => Boolean(jobId) && job.exists && !isAiStudioJobTerminal(job),
+    pollingIntervalMs: 5000,
     retryOnPermissionDenied: false,
   });
 }

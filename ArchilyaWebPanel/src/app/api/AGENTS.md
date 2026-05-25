@@ -3,15 +3,15 @@
 ## Handler pattern
 
 - API routes are App Router route handlers under `src/app/api/**/route.ts`.
-- Keep the usual order: validate input with Zod helpers from `@/lib/api/validation`, require the panel session, verify the Firebase ID token, then call backend services.
-- Sensitive routes normally accept `idToken` in the request body or form data; do not silently switch to `Authorization` headers unless all callers and tests are updated.
+- Keep the usual order: validate input with Zod helpers from `@/lib/api/validation`, require the panel session, verify the Supabase access token, then call backend services.
+- Sensitive routes accept `accessToken` in the request body or form data.
 - Wrap mutating or expensive handlers with `withRateLimit` from `@/lib/api/rate-limit`.
 - Return failures through `apiErrorResponse` from `@/lib/api/errors` so status mapping stays consistent.
 
 ## Auth and RBAC
 
 - `requireSessionUser()` comes from `@/lib/auth/session` and is server-only. Never import it into client components.
-- Use `requireVerifiedFirebaseIdentity(sessionUser, idToken)` before trusting caller-provided user IDs.
+- Use `requireVerifiedSupabaseIdentity(sessionUser, accessToken)` before trusting caller-provided user IDs.
 - Workspace-sensitive operations should call RBAC helpers from `@/lib/rbac/server` where applicable.
 
 ## Local conventions

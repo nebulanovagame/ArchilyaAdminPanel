@@ -4,9 +4,6 @@ export const AI_STUDIO_TOOL_CREDIT_COSTS = {
   enhance: 20,
   sceneedit: 35,
   plancolor: 15,
-  archilyarender: 50,
-  archilyadepth: 10,
-  archilyaconsistency: 15,
 } as const;
 
 export type AiStudioToolId = keyof typeof AI_STUDIO_TOOL_CREDIT_COSTS;

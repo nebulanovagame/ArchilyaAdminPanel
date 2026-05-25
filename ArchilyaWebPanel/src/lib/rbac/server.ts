@@ -1,5 +1,4 @@
-import { doc, getDoc } from "firebase/firestore";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import type { WorkspaceRole, Permission } from "@/lib/rbac/permissions";
 import { hasPermission, hasMinimumRole } from "@/lib/rbac/permissions";
 
@@ -7,16 +6,18 @@ export async function getUserWorkspaceRole(
   uid: string,
   workspaceId: string,
 ): Promise<WorkspaceRole | null> {
-  const db = getFirebaseFirestore();
-  const workspaceSnap = await getDoc(doc(db, "workspaces", workspaceId));
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("workspaces")
+    .select("admin_uid, members")
+    .eq("id", workspaceId)
+    .single();
 
-  if (!workspaceSnap.exists()) {
+  if (error || !data) {
     return null;
   }
 
-  const data = workspaceSnap.data();
-
-  if (data.adminUid === uid) {
+  if (data.admin_uid === uid) {
     return "owner";
   }
 

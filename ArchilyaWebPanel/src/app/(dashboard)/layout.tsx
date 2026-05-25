@@ -1,6 +1,7 @@
 import { Toaster } from "react-hot-toast";
 
 import DashboardShell from "@/components/dashboard/dashboard-shell";
+import { RecoveryGuard } from "@/components/auth/recovery-guard";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { WorkspaceProvider } from "@/components/providers/workspace-provider";
 import { requireSessionUser } from "@/lib/auth/session";
@@ -14,6 +15,7 @@ export default async function DashboardLayout({
 
   return (
     <WorkspaceProvider>
+      <RecoveryGuard />
       <ThemeProvider>
         <DashboardShell sessionUser={sessionUser}>{children}</DashboardShell>
         <Toaster

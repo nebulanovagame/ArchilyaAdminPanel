@@ -17,7 +17,7 @@ import {
   getUserInitial,
   type UserDisplayData,
 } from "@/lib/auth/user-display";
-import { getFirebaseAuthErrorMessage } from "@/lib/firebase/auth-errors";
+import { getSupabaseAuthErrorMessage } from "@/lib/supabase/auth-errors";
 import { Logo } from "@/components/brand/logo";
 
 interface MobileDrawerProps {
@@ -43,7 +43,7 @@ export default function MobileDrawer({ sessionUser }: MobileDrawerProps) {
       router.replace("/giris");
       router.refresh();
     } catch (error) {
-      toast.error(getFirebaseAuthErrorMessage(error));
+      toast.error(getSupabaseAuthErrorMessage(error));
     } finally {
       setLogoutLoading(false);
     }

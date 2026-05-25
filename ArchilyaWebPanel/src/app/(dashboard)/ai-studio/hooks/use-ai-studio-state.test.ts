@@ -24,7 +24,6 @@ const mocks = vi.hoisted(() => ({
   saveAiPromptHistorySecure: vi.fn().mockResolvedValue({ history: {} }),
   queueAiStudioJob: vi.fn().mockResolvedValue({ jobId: "job-1" }),
   createActivityLogEntry: vi.fn().mockResolvedValue(undefined),
-  getFirebaseFirestore: vi.fn(),
   logAiGenerationSuccess: vi.fn(),
   saveAiJobFeedback: vi.fn().mockResolvedValue(undefined),
   uploadProjectFiles: vi.fn().mockResolvedValue(undefined),
@@ -49,7 +48,6 @@ vi.mock("@/services/entitlement-service", () => ({
 }));
 vi.mock("@/services/nano-banana-service", () => ({ queueAiStudioJob: mocks.queueAiStudioJob }));
 vi.mock("@/lib/activity/service", () => ({ createActivityLogEntry: mocks.createActivityLogEntry }));
-vi.mock("@/lib/firebase/client", () => ({ getFirebaseFirestore: mocks.getFirebaseFirestore }));
 vi.mock("@/lib/analytics/events", () => ({ logAiGenerationSuccess: mocks.logAiGenerationSuccess }));
 vi.mock("@/lib/ai-studio/service", () => ({ saveAiJobFeedback: mocks.saveAiJobFeedback }));
 vi.mock("@/lib/projects/service", () => ({ uploadProjectFiles: mocks.uploadProjectFiles }));

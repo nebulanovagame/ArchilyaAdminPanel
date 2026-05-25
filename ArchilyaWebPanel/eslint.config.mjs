@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "qa/**",
     "e2e/**",
+    "scratch/**",
     "playwright.config.js",
   ]),
 ]);

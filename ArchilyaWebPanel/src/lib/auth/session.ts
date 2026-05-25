@@ -2,7 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
+import { createClient } from "@/lib/supabase/server";
 
 import {
   buildAuthRedirectHref,
@@ -12,15 +12,6 @@ import {
 export const SESSION_COOKIE_NAME = "archilya_panel_session";
 export const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 5;
 
-const PANEL_SESSION_TYPE = "archilya-panel-session";
-const PANEL_SESSION_ISSUER = "archilya-panel";
-const PANEL_SESSION_AUDIENCE = "archilya-panel-user";
-const FIREBASE_ID_TOKEN_JWKS = createRemoteJWKSet(
-  new URL(
-    "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com",
-  ),
-);
-
 export type SessionUser = {
   uid: string;
   email: string | null;
@@ -29,136 +20,41 @@ export type SessionUser = {
   emailVerified: boolean;
 };
 
-type SessionCookiePayload = {
-  type: string;
-  uid: string;
+function toSessionUser(user: {
+  id: string;
   email?: string | null;
-  name?: string | null;
-  picture?: string | null;
-  emailVerified?: boolean;
-};
-
-function getFirebaseProjectId(): string {
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "";
-
-  if (!projectId) {
-    console.warn("[session] NEXT_PUBLIC_FIREBASE_PROJECT_ID eksik.");
-  }
-
-  return projectId || "demo-project";
-}
-
-function getSessionSecret(): Uint8Array {
-  const secret = process.env.PANEL_SESSION_SECRET;
-
-  if (!secret) {
-    throw new Error(
-      "PANEL_SESSION_SECRET ortam değişkeni tanımlı değil. " +
-        "Lütfen .env.local dosyasına PANEL_SESSION_SECRET=<güçlü-bir-şifre> ekleyin."
-    );
-  }
-
-  return new TextEncoder().encode(secret);
-}
-
-function toSessionUser(decodedToken: {
-  uid: string;
-  email?: string | null;
-  name?: string | null;
-  picture?: string | null;
-  email_verified?: boolean;
+  user_metadata?: {
+    name?: string | null;
+    avatar_url?: string | null;
+    picture?: string | null;
+  } | null;
+  email_confirmed_at?: string | null;
 }): SessionUser {
   return {
-    uid: decodedToken.uid,
-    email: decodedToken.email ?? null,
-    name: decodedToken.name ?? null,
-    picture: decodedToken.picture ?? null,
-    emailVerified: decodedToken.email_verified ?? false,
+    uid: user.id,
+    email: user.email ?? null,
+    name: user.user_metadata?.name ?? null,
+    picture: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+    emailVerified: Boolean(user.email_confirmed_at),
   };
 }
 
-function toSessionUserFromPayload(
-  payload: SessionCookiePayload,
-): SessionUser {
-  return {
-    uid: payload.uid,
-    email: payload.email ?? null,
-    name: payload.name ?? null,
-    picture: payload.picture ?? null,
-    emailVerified: Boolean(payload.emailVerified),
-  };
-}
-
-export async function verifyFirebaseIdToken(idToken: string) {
-  const projectId = getFirebaseProjectId();
-  const { payload } = await jwtVerify(idToken, FIREBASE_ID_TOKEN_JWKS, {
-    issuer: `https://securetoken.google.com/${projectId}`,
-    audience: projectId,
-  });
-
-  if (!payload.sub) {
-    throw new Error("Firebase ID token geçersiz.");
-  }
-
-  return toSessionUser({
-    uid: String(payload.sub),
-    email: typeof payload.email === "string" ? payload.email : null,
-    name: typeof payload.name === "string" ? payload.name : null,
-    picture: typeof payload.picture === "string" ? payload.picture : null,
-    email_verified: Boolean(payload.email_verified),
-  });
-}
-
-export async function createSessionCookieValue(idToken: string) {
-  const sessionUser = await verifyFirebaseIdToken(idToken);
-
-  return new SignJWT({
-    type: PANEL_SESSION_TYPE,
-    uid: sessionUser.uid,
-    email: sessionUser.email,
-    name: sessionUser.name,
-    picture: sessionUser.picture,
-    emailVerified: sessionUser.emailVerified,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setIssuer(PANEL_SESSION_ISSUER)
-    .setAudience(PANEL_SESSION_AUDIENCE)
-    .setExpirationTime(
-      Math.floor(Date.now() / 1000) + Math.floor(SESSION_DURATION_MS / 1000),
-    )
-    .sign(getSessionSecret());
-}
-
-export async function getSessionCookieValue() {
-  const cookieStore = await cookies();
-  return cookieStore.get(SESSION_COOKIE_NAME)?.value ?? "";
-}
-
-export async function getOptionalSessionUser() {
+export async function getOptionalSessionUser(): Promise<SessionUser | null> {
   try {
-    const sessionCookie = await getSessionCookieValue();
+    const supabase = await createClient();
+    const { data: { user }, error } = await supabase.auth.getUser();
 
-    if (!sessionCookie) {
+    if (error || !user) {
       return null;
     }
 
-    const { payload } = await jwtVerify(sessionCookie, getSessionSecret(), {
-      issuer: PANEL_SESSION_ISSUER,
-      audience: PANEL_SESSION_AUDIENCE,
-    });
-
-    if (payload.type !== PANEL_SESSION_TYPE || typeof payload.uid !== "string") {
-      return null;
-    }
-
-    return toSessionUserFromPayload(payload as unknown as SessionCookiePayload);
+    return toSessionUser(user);
   } catch {
     return null;
   }
 }
 
-export async function requireSessionUser() {
+export async function requireSessionUser(): Promise<SessionUser> {
   const sessionUser = await getOptionalSessionUser();
 
   if (!sessionUser) {
@@ -170,3 +66,10 @@ export async function requireSessionUser() {
 
   return sessionUser;
 }
+
+export async function getSessionCookieValue() {
+  const cookieStore = await cookies();
+  return cookieStore.get(SESSION_COOKIE_NAME)?.value ?? "";
+}
+
+// Legacy helpers removed — all auth now uses Supabase.

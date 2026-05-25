@@ -1,9 +1,7 @@
-import { runTransaction } from "firebase/firestore";
 import { NextResponse } from "next/server";
 
 import { getOptionalSessionUser } from "@/lib/auth/session";
-import { callFirebaseCallableFromServer, requireVerifiedFirebaseIdentity } from "@/lib/firebase/callable-server";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
+import { callBackendCallableFromServer, requireVerifiedSupabaseIdentity } from "@/lib/supabase/callable";
 import { calculateProrationQuote, getPlanById, type ChangeSubscriptionResult } from "@/lib/subscription";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { withRateLimit } from "@/lib/api/rate-limit";
@@ -42,7 +40,7 @@ async function handler(request: Request) {
   }
 
   try {
-    const { idToken, workspaceId, targetPlanId, quoteId } = validated.data;
+    const { accessToken, workspaceId, targetPlanId, quoteId } = validated.data;
 
     if (!isSubscriptionPlanId(targetPlanId)) {
       return NextResponse.json({ error: "Geçerli bir targetPlanId gönderin." }, { status: 400 });
@@ -52,9 +50,9 @@ async function handler(request: Request) {
       return NextResponse.json({ error: "quoteId boş olamaz." }, { status: 400 });
     }
 
-    const firebaseUser = await requireVerifiedFirebaseIdentity(sessionUser, idToken);
-    await requireWorkspacePermission(firebaseUser.uid, workspaceId, "workspace.billing");
-    const { ref, state } = await getUserSubscriptionDocument(firebaseUser.uid);
+    const verifiedUser = await requireVerifiedSupabaseIdentity(sessionUser, accessToken);
+    await requireWorkspacePermission(verifiedUser.uid, workspaceId, "workspace.billing");
+    const { state } = await getUserSubscriptionDocument(verifiedUser.uid);
     const quote = calculateProrationQuote(
       state.planId,
       targetPlanId,
@@ -76,13 +74,13 @@ async function handler(request: Request) {
     );
 
     if (requiresCheckout) {
-      const checkoutResult = await callFirebaseCallableFromServer<
+      const checkoutResult = await callBackendCallableFromServer<
         { planId: string; userEmail: string; userId: string; userName: string },
         CheckoutFormResult
-      >("createIyzicoCheckoutForm", idToken, {
+      >("createIyzicoCheckoutForm", accessToken, {
         planId: targetPlan.id,
         userEmail: sessionUser?.email ?? "",
-        userId: firebaseUser.uid,
+        userId: verifiedUser.uid,
         userName: getCheckoutUserName(sessionUser?.email ?? null, sessionUser?.name ?? null),
       });
 
@@ -101,26 +99,34 @@ async function handler(request: Request) {
     }
 
     if (quote.changeType === "downgrade") {
-      await runTransaction(getFirebaseFirestore(), async (transaction) => {
-        const snap = await transaction.get(ref);
-        const latestState = readUserSubscriptionState(snap.data() || {});
-        const latestQuote = calculateProrationQuote(
-          latestState.planId,
-          targetPlanId,
-          latestState.startAt,
-          latestState.endAt,
-          latestState.billingCreditBalanceKurus,
-        );
+      const { createClient } = await import("@/lib/supabase/server");
+      const supabase = await createClient();
+      const { data: latestData } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", verifiedUser.uid)
+        .single();
 
-        if (latestQuote.changeType !== "downgrade") {
-          throw new ApiRouteError(409, "Abonelik durumu değişti. Lütfen tekrar deneyin.");
-        }
+      const latestState = readUserSubscriptionState((latestData || {}) as Record<string, unknown>);
+      const latestQuote = calculateProrationQuote(
+        latestState.planId,
+        targetPlanId,
+        latestState.startAt,
+        latestState.endAt,
+        latestState.billingCreditBalanceKurus,
+      );
 
-        transaction.update(ref, buildSubscriptionMirrorUpdate({
+      if (latestQuote.changeType !== "downgrade") {
+        throw new ApiRouteError(409, "Abonelik durumu değişti. Lütfen tekrar deneyin.");
+      }
+
+      await supabase
+        .from("users")
+        .update(buildSubscriptionMirrorUpdate({
           billingCreditBalanceKurus: latestQuote.billingCreditKurus,
           pendingPlanId: targetPlanId,
-        }));
-      });
+        }) as Record<string, unknown>)
+        .eq("id", verifiedUser.uid);
 
       return NextResponse.json({
         success: true,

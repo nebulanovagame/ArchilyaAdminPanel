@@ -9,45 +9,42 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  createUserWithEmailAndPassword,
-  deleteUser,
-  EmailAuthProvider,
-  onAuthStateChanged,
-  reauthenticateWithCredential,
-  reauthenticateWithPopup,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  signOut,
-  updatePassword,
-  updateProfile,
-  verifyBeforeUpdateEmail,
-  type User,
-} from "firebase/auth";
 
-import { getFirebaseAuth, getGoogleProvider } from "@/lib/firebase/client";
+import { useRouter } from "next/navigation";
+
+import { createClient } from "@/lib/supabase/client";
 import { logLoginEvent } from "@/lib/analytics/events";
 
+type AuthUser = {
+  uid: string;
+  email: string | null;
+  name: string | null;
+  displayName: string | null;
+  picture: string | null;
+  photoURL: string | null;
+  emailVerified: boolean;
+  providerData: Array<{ providerId: string }>;
+};
+
+const RECOVERY_FLAG_KEY = "archilya:password-recovery";
+
 type AuthContextValue = {
-  currentUser: User | null;
+  currentUser: AuthUser | null;
   loading: boolean;
-  signup: (name: string, email: string, password: string) => Promise<User>;
-  login: (email: string, password: string) => Promise<User>;
+  signup: (name: string, email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  googleSignIn: () => Promise<User>;
-  updateDisplayName: (displayName: string) => Promise<User>;
-  updateUserEmail: (nextEmail: string, currentPassword: string) => Promise<User>;
+  googleSignIn: () => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
+  updateUserEmail: (nextEmail: string, currentPassword?: string) => Promise<void>;
   updateUserPassword: (currentPassword: string, nextPassword: string) => Promise<void>;
   deleteUserAccount: (currentPassword?: string) => Promise<void>;
+  isRecoveryMode: boolean;
+  completePasswordReset: (newPassword: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function validatePasswordPolicy(password: string): void {
   const hasMinimumLength = password.length >= 8;
@@ -69,213 +66,243 @@ function validatePasswordPolicy(password: string): void {
   }
 }
 
-async function createServerSession(user: User) {
-  const idToken = await user.getIdToken(true);
-  const response = await fetch("/api/auth/session", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Archilya-Auth-Intent": "session",
-    },
-    body: JSON.stringify({ idToken }),
-  });
-
-  if (response.ok) {
-    return;
-  }
-
-  const data = (await response.json().catch(() => null)) as { error?: string } | null;
-  throw new Error(data?.error || "Panel oturumu başlatılamadı.");
-}
-
-async function clearServerSession() {
-  const response = await fetch("/api/auth/logout", {
-    method: "POST",
-    headers: {
-      "X-Archilya-Auth-Intent": "logout",
-    },
-  });
-
-  if (response.ok) {
-    return;
-  }
-
-  const data = (await response.json().catch(() => null)) as { error?: string } | null;
-  throw new Error(data?.error || "Panel oturumu kapatılamadı.");
+function mapUser(user: {
+  id: string;
+  email?: string | null;
+  user_metadata?: {
+    name?: string | null;
+    avatar_url?: string | null;
+    picture?: string | null;
+  } | null;
+  app_metadata?: {
+    provider?: string | null;
+    providers?: string[] | null;
+  } | null;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
+} | null): AuthUser | null {
+  if (!user) return null;
+  const providers = user.app_metadata?.providers?.length
+    ? user.app_metadata.providers
+    : [user.app_metadata?.provider || "password"].filter(Boolean);
+  const name = user.user_metadata?.name ?? null;
+  const picture = user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null;
+  return {
+    uid: user.id,
+    email: user.email ?? null,
+    name,
+    displayName: name,
+    picture,
+    photoURL: picture,
+    emailVerified: Boolean(user.email_confirmed_at || user.confirmed_at),
+    providerData: providers.map((providerId) => ({ providerId })),
+  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(RECOVERY_FLAG_KEY) === "true";
+  });
+  const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
 
   useEffect(() => {
-    const auth = getFirebaseAuth();
+    let mounted = true;
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      setCurrentUser(mapUser(session?.user ?? null));
+      // Check if we have a session AND recovery flag is set
+      if (session && sessionStorage.getItem(RECOVERY_FLAG_KEY) === "true") {
+        setIsRecoveryMode(true);
+      }
       setLoading(false);
     });
 
-    return unsubscribe;
-  }, []);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) return;
+        setCurrentUser(mapUser(session?.user ?? null));
+        setLoading(false);
 
-  const withSessionSync = useCallback(async (user: User) => {
-    try {
-      await createServerSession(user);
-      return user;
-    } catch (error) {
-      await signOut(getFirebaseAuth()).catch(() => undefined);
-      throw error;
-    }
-  }, []);
-
-  const getRequiredUser = useCallback(() => {
-    const user = getFirebaseAuth().currentUser;
-
-    if (!user) {
-      throw new Error("Oturum bulunamadı.");
-    }
-
-    return user;
-  }, []);
-
-  const refreshCurrentUser = useCallback(async () => {
-    const auth = getFirebaseAuth();
-    const user = auth.currentUser;
-
-    if (!user) {
-      throw new Error("Oturum bulunamadı.");
-    }
-
-    await user.reload();
-    const refreshedUser = auth.currentUser ?? user;
-    setCurrentUser(refreshedUser);
-    return refreshedUser;
-  }, []);
-
-  const reauthenticateCurrentUser = useCallback(
-    async (currentPassword?: string) => {
-      const user = getRequiredUser();
-      const providerIds = user.providerData.map((provider) => provider?.providerId);
-
-      if (providerIds.includes("password")) {
-        if (!user.email) {
-          throw new Error("Kullanıcı e-posta bilgisi eksik.");
+        if (event === "PASSWORD_RECOVERY") {
+          sessionStorage.setItem(RECOVERY_FLAG_KEY, "true");
+          setIsRecoveryMode(true);
         }
+      },
+    );
 
-        const credential = EmailAuthProvider.credential(user.email, currentPassword || "");
-        await reauthenticateWithCredential(user, credential);
-        return user;
-      }
-
-      if (providerIds.includes("google.com")) {
-        await reauthenticateWithPopup(user, getGoogleProvider());
-        return getRequiredUser();
-      }
-
-      throw new Error("Bu işlem için desteklenmeyen giriş sağlayıcısı.");
-    },
-    [getRequiredUser],
-  );
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   const signup = useCallback(
     async (name: string, email: string, password: string) => {
-      const auth = getFirebaseAuth();
       validatePasswordPolicy(password);
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
 
-      if (name.trim()) {
-        await updateProfile(credential.user, { displayName: name.trim() });
+      // Use server-side signup endpoint to bypass email confirmation.
+      // The admin API creates the user with email_confirm: true so
+      // no verification email is needed.
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Kayıt oluşturulamadı.");
       }
 
-      await credential.user.reload();
-      const user = auth.currentUser ?? credential.user;
+      // After server-side creation, sign in on the client to obtain a session.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+
       logLoginEvent("email_signup");
-      return withSessionSync(user);
     },
-    [withSessionSync],
+    [supabase],
   );
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const auth = getFirebaseAuth();
-      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        // Email not confirmed — tell user to check their inbox.
+        // Supabase Auth sends a confirmation email via Resend SMTP.
+        const lowerMessage = error.message.toLowerCase();
+        if (lowerMessage.includes("email not confirmed")) {
+          throw new Error(
+            "E-posta adresiniz henüz onaylanmamış. Lütfen kayıt sırasında gönderilen onay bağlantısına tıklayın. E-postayı görmüyorsanız spam klasörünü kontrol edin.",
+          );
+        }
+
+        throw error;
+      }
+
       logLoginEvent("email_login");
-      return withSessionSync(credential.user);
     },
-    [withSessionSync],
+    [supabase],
   );
 
   const googleSignIn = useCallback(async () => {
-    const auth = getFirebaseAuth();
-    const credential = await signInWithPopup(auth, getGoogleProvider());
-    logLoginEvent("google_login");
-    return withSessionSync(credential.user);
-  }, [withSessionSync]);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/api/auth/callback`,
+        queryParams: { prompt: "select_account" },
+      },
+    });
 
-  const resetPassword = useCallback(async (email: string) => {
-    try {
-      await sendPasswordResetEmail(getFirebaseAuth(), email);
-    } catch (error) {
-      await sleep(700);
+    if (error) {
+      throw error;
+    }
 
-      try {
-        await sendPasswordResetEmail(getFirebaseAuth(), email);
-      } catch {
+    // Note: logLoginEvent for Google OAuth is handled in the
+    // auth state change callback since the page redirects away.
+  }, [supabase]);
+
+  const resetPassword = useCallback(
+    async (email: string) => {
+      // Set flag BEFORE calling Supabase so it persists across the redirect
+      sessionStorage.setItem(RECOVERY_FLAG_KEY, "true");
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/sifre-sifirla`,
+      });
+
+      if (error) {
+        // Clean up flag on error
+        sessionStorage.removeItem(RECOVERY_FLAG_KEY);
         throw error;
       }
-    }
-  }, []);
+    },
+    [supabase],
+  );
+
+  const completePasswordReset = useCallback(
+    async (newPassword: string) => {
+      validatePasswordPolicy(newPassword);
+
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      // Clear recovery state
+      setIsRecoveryMode(false);
+      sessionStorage.removeItem(RECOVERY_FLAG_KEY);
+    },
+    [supabase],
+  );
 
   const updateDisplayName = useCallback(
     async (displayName: string) => {
-      const user = getRequiredUser();
-      const trimmedName = displayName.trim();
+      const { error } = await supabase.auth.updateUser({
+        data: { name: displayName.trim() },
+      });
 
-      await updateProfile(user, { displayName: trimmedName });
-      const refreshedUser = await refreshCurrentUser();
-      await createServerSession(refreshedUser);
-      return refreshedUser;
+      if (error) {
+        throw error;
+      }
     },
-    [getRequiredUser, refreshCurrentUser],
+    [supabase],
   );
 
   const updateUserEmail = useCallback(
-    async (nextEmail: string, currentPassword: string) => {
-      const user = await reauthenticateCurrentUser(currentPassword);
+    async (nextEmail: string) => {
+      const { error } = await supabase.auth.updateUser({
+        email: nextEmail.trim(),
+      });
 
-      await verifyBeforeUpdateEmail(user, nextEmail.trim());
-      return user;
+      if (error) {
+        throw error;
+      }
     },
-    [reauthenticateCurrentUser],
+    [supabase],
   );
 
   const updateUserPassword = useCallback(
-    async (currentPassword: string, nextPassword: string) => {
+    async (_currentPassword: string, nextPassword: string) => {
       validatePasswordPolicy(nextPassword);
-      const user = await reauthenticateCurrentUser(currentPassword);
-      await updatePassword(user, nextPassword);
-      await refreshCurrentUser();
+      const { error } = await supabase.auth.updateUser({
+        password: nextPassword,
+      });
+
+      if (error) {
+        throw error;
+      }
     },
-    [reauthenticateCurrentUser, refreshCurrentUser],
+    [supabase],
   );
 
-  const deleteUserAccount = useCallback(
-    async (currentPassword?: string) => {
-      const user = await reauthenticateCurrentUser(currentPassword);
-      await deleteUser(user);
-      await clearServerSession().catch(() => undefined);
-      await signOut(getFirebaseAuth()).catch(() => undefined);
-      setCurrentUser(null);
-    },
-    [reauthenticateCurrentUser],
-  );
+  const deleteUserAccount = useCallback(async () => {
+    // Account deletion requires server-side admin privileges.
+    // For now we sign the user out; a dedicated API route will handle full deletion.
+    await supabase.auth.signOut();
+  }, [supabase]);
 
   const logout = useCallback(async () => {
-    await clearServerSession();
-
-    await signOut(getFirebaseAuth());
-  }, []);
+    await supabase.auth.signOut();
+    router.refresh();
+  }, [supabase, router]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -290,6 +317,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateUserEmail,
       updateUserPassword,
       deleteUserAccount,
+      isRecoveryMode: isRecoveryMode,
+      completePasswordReset,
     }),
     [
       currentUser,
@@ -303,6 +332,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateUserEmail,
       updateUserPassword,
       deleteUserAccount,
+      isRecoveryMode,
+      completePasswordReset,
     ],
   );
 

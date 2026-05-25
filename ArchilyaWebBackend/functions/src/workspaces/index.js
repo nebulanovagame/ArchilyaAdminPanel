@@ -1,7 +1,17 @@
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { onTaskDispatched } = require('firebase-functions/v2/tasks');
-const shared = require('../shared');
-const { FieldValue, buildChunkedBatches, db, ensureUserProfileDoc, getAuthorizedWorkspaceForUser, getWorkspacePlanConfig, getWorkspaceProjects, normalizeEmail, normalizeMember, normalizeText, requireAuth, syncMemberIntoWorkspaceProjects, syncMemberRemovalFromWorkspaceProjects } = shared;
+const { onCall, HttpsError } = require('../shared/http-callable');
+const {
+  supabase,
+  requireAuth,
+  normalizeText,
+  normalizeEmail,
+  ensureUserProfileDoc,
+  getAuthorizedWorkspaceForUser,
+  getWorkspacePlanConfig,
+  normalizeMember,
+  syncMemberIntoWorkspaceProjects,
+  syncMemberRemovalFromWorkspaceProjects,
+} = require('../shared/supabase-helpers');
+
 exports.createWorkspaceSecure = onCall(
   { region: 'europe-west1' },
   async (request) => {
@@ -11,49 +21,64 @@ exports.createWorkspaceSecure = onCall(
     const requestedName = normalizeText(request.data?.name || '', 140);
     const workspaceName = requestedName || `${displayName}'in Calisma Alani`;
 
-    const userRef = db.collection('users').doc(uid);
-    const workspacesRef = db.collection('workspaces');
     await ensureUserProfileDoc(uid, { email, displayName });
 
-    const [adminSnap, memberSnap, userSnap] = await Promise.all([
-      workspacesRef.where('adminUid', '==', uid).limit(1).get(),
-      workspacesRef.where('memberUids', 'array-contains', uid).limit(1).get(),
-      userRef.get(),
-    ]);
+    const { data: existingMembership } = await supabase
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', uid)
+      .limit(1)
+      .single();
 
-    if (!adminSnap.empty || !memberSnap.empty) {
+    if (existingMembership) {
       throw new HttpsError('failed-precondition', 'Zaten bir calisma alanina baglisiniz.');
     }
 
-    const userPlan = userSnap.data()?.plan || 'free';
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('subscription_plan')
+      .eq('id', uid)
+      .single();
+
+    const userPlan = user?.subscription_plan || 'free';
     const workspacePlanConfig = getWorkspacePlanConfig(userPlan);
     if (!workspacePlanConfig) {
       throw new HttpsError('permission-denied', 'Calisma alani olusturmak icin Solo, Pro veya Studio paketi gerekir.');
     }
 
-    const wsRef = workspacesRef.doc();
-    await wsRef.set({
-      name: workspaceName,
-      adminUid: uid,
-      adminEmail: email,
-      plan: userPlan,
-      memberUids: [uid],
-      memberEmails: [email],
-      members: [{
-        uid,
-        email,
-        displayName,
-        role: 'admin',
-        joinedAt: new Date().toISOString(),
-      }],
-      poolCredits: workspacePlanConfig.poolCredits,
-      poolStorage: workspacePlanConfig.poolStorage,
-      usedStorage: 0,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+    const { data: workspace, error: wsError } = await supabase
+      .from('workspaces')
+      .insert({
+        name: workspaceName,
+        admin_id: uid,
+        admin_uid: uid,
+        admin_email: email,
+        plan: userPlan,
+        credits: workspacePlanConfig.poolCredits,
+        pool_credits: workspacePlanConfig.poolCredits,
+        max_storage: workspacePlanConfig.poolStorage,
+        pool_storage: workspacePlanConfig.poolStorage,
+        used_storage: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (wsError || !workspace) {
+      throw new HttpsError('internal', wsError?.message || 'Workspace olusturulamadi.');
+    }
+
+    await supabase.from('workspace_members').insert({
+      workspace_id: workspace.id,
+      user_id: uid,
+      email,
+      display_name: displayName,
+      role: 'admin',
+      joined_at: new Date().toISOString(),
     });
 
-    return { success: true, workspaceId: wsRef.id };
+    return { success: true, workspaceId: workspace.id };
   }
 );
 
@@ -76,82 +101,114 @@ exports.inviteWorkspaceMemberSecure = onCall(
       throw new HttpsError('invalid-argument', 'Kendinizi davet edemezsiniz.');
     }
 
-    const wsRef = db.collection('workspaces').doc(workspaceId);
-    const wsSnap = await wsRef.get();
-    if (!wsSnap.exists) throw new HttpsError('not-found', 'Calisma alani bulunamadi.');
+    const { data: workspace, error: wsError } = await supabase
+      .from('workspaces')
+      .select('*')
+      .eq('id', workspaceId)
+      .single();
 
-    const ws = wsSnap.data() || {};
-    if (ws.adminUid !== uid) {
+    if (wsError || !workspace) {
+      throw new HttpsError('not-found', 'Calisma alani bulunamadi.');
+    }
+
+    if ((workspace.admin_uid || workspace.admin_id) !== uid) {
       throw new HttpsError('permission-denied', 'Sadece workspace yoneticisi davet gonderebilir.');
     }
 
-    const members = Array.isArray(ws.members) ? ws.members : [];
-    const workspacePlanConfig = getWorkspacePlanConfig(ws.plan);
+    const { data: members } = await supabase
+      .from('workspace_members')
+      .select('*')
+      .eq('workspace_id', workspaceId);
+
+    const workspacePlanConfig = getWorkspacePlanConfig(workspace.plan);
     const maxMembers = Number(workspacePlanConfig?.maxMembers || 0);
     if (!maxMembers) {
       throw new HttpsError('failed-precondition', 'Bu workspace planinda ekip daveti aktif degil.');
     }
-    if (members.length >= maxMembers) {
+    if ((members?.length || 0) >= maxMembers) {
       throw new HttpsError('failed-precondition', `Maksimum uye sinirina ulasildi. Bu plan en fazla ${maxMembers} kisi destekler.`);
     }
-    if (members.some((m) => normalizeEmail(m.email) === toEmail)) {
+    if (members?.some((m) => normalizeEmail(m.email) === toEmail)) {
       throw new HttpsError('failed-precondition', 'Bu kisi zaten workspace uyesi.');
     }
 
-    const pendingSnap = await db.collection('workspaceInvites')
-      .where('workspaceId', '==', workspaceId)
-      .where('toEmail', '==', toEmail)
-      .where('status', '==', 'pending')
+    const { data: pendingInvite } = await supabase
+      .from('workspace_invites')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('to_email', toEmail)
+      .eq('status', 'pending')
       .limit(1)
-      .get();
-    if (!pendingSnap.empty) {
+      .single();
+
+    if (pendingInvite) {
       throw new HttpsError('already-exists', 'Bu kisiye zaten bekleyen bir davet var.');
     }
 
     let toUid = null;
-    const userByEmailSnap = await db.collection('users').where('email', '==', toEmail).limit(1).get();
-    if (!userByEmailSnap.empty) {
-      toUid = userByEmailSnap.docs[0].id;
-      const otherWorkspaceSnap = await db.collection('workspaces').where('memberUids', 'array-contains', toUid).limit(2).get();
-      const hasOther = otherWorkspaceSnap.docs.some((d) => d.id !== workspaceId);
+    const { data: userByEmail } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', toEmail)
+      .limit(1)
+      .single();
+
+    if (userByEmail) {
+      toUid = userByEmail.id;
+      const { data: otherMemberships } = await supabase
+        .from('workspace_members')
+        .select('workspace_id')
+        .eq('user_id', toUid)
+        .limit(2);
+
+      const hasOther = otherMemberships?.some((m) => m.workspace_id !== workspaceId);
       if (hasOther) {
         throw new HttpsError('failed-precondition', 'Bu kullanici zaten baska bir calisma alanina bagli.');
       }
     }
 
-    const inviteRef = db.collection('workspaceInvites').doc();
-    const notifRef = db.collection('notifications').doc();
-    const batch = db.batch();
+    const { data: invite, error: inviteError } = await supabase
+      .from('workspace_invites')
+      .insert({
+        workspace_id: workspaceId,
+        from_user_id: uid,
+        workspace_name: workspace.name || 'Workspace',
+        from_uid: uid,
+        from_email: fromEmail,
+        from_name: fromName,
+        to_email: toEmail,
+        to_user_id: toUid,
+        to_uid: toUid,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
 
-    batch.set(inviteRef, {
-      workspaceId,
-      workspaceName: ws.name || 'Workspace',
-      fromUid: uid,
-      fromEmail,
-      fromName,
-      toEmail,
-      toUid,
-      status: 'pending',
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    if (inviteError || !invite) {
+      throw new HttpsError('internal', inviteError?.message || 'Davet olusturulamadi.');
+    }
 
-    batch.set(notifRef, {
-      toEmail,
-      toUid,
+    await supabase.from('notifications').insert({
+      user_id: toUid,
+      email: toEmail,
+      to_email: toEmail,
+      to_uid: toUid,
       type: 'workspace_invite',
       title: 'Calisma Alanina Davet',
-      body: `${fromName} sizi "${ws.name || 'Workspace'}" calisma alanina davet etti.`,
-      workspaceId,
-      workspaceName: ws.name || 'Workspace',
-      inviteId: inviteRef.id,
+      body: `${fromName} sizi "${workspace.name || 'Workspace'}" calisma alanina davet etti.`,
+      workspace_id: workspaceId,
+      workspace_name: workspace.name || 'Workspace',
+      invite_id: invite.id,
+      is_read: false,
       read: false,
-      createdAt: FieldValue.serverTimestamp(),
+      created_at: new Date().toISOString(),
     });
 
-    await batch.commit();
-    return { success: true, inviteId: inviteRef.id };
+    return { success: true, inviteId: invite.id };
   }
 );
+
 exports.acceptWorkspaceInviteSecure = onCall(
   { region: 'europe-west1' },
   async (request) => {
@@ -161,32 +218,43 @@ exports.acceptWorkspaceInviteSecure = onCall(
 
     if (!inviteId) throw new HttpsError('invalid-argument', 'inviteId zorunludur.');
 
-    const inviteRef = db.collection('workspaceInvites').doc(inviteId);
-    const inviteSnap = await inviteRef.get();
-    if (!inviteSnap.exists) throw new HttpsError('not-found', 'Davet bulunamadi.');
+    const { data: invite, error: inviteError } = await supabase
+      .from('workspace_invites')
+      .select('*')
+      .eq('id', inviteId)
+      .single();
 
-    const invite = inviteSnap.data() || {};
+    if (inviteError || !invite) throw new HttpsError('not-found', 'Davet bulunamadi.');
+
     const currentStatus = String(invite.status || '');
     if (!['pending', 'accepted_sync_pending', 'accepted'].includes(currentStatus)) {
       throw new HttpsError('failed-precondition', 'Bu davet aktif degil.');
     }
 
-    const allowedByUid = invite.toUid && invite.toUid === uid;
-    const allowedByEmail = normalizeEmail(invite.toEmail) === email;
+    const allowedByUid = (invite.to_uid || invite.to_user_id) && (invite.to_uid || invite.to_user_id) === uid;
+    const allowedByEmail = normalizeEmail(invite.to_email) === email;
     if (!allowedByUid && !allowedByEmail) {
       throw new HttpsError('permission-denied', 'Bu daveti kabul etme yetkiniz yok.');
     }
 
-    const workspaceId = String(invite.workspaceId || '');
+    const workspaceId = String(invite.workspace_id || '');
     if (!workspaceId) throw new HttpsError('failed-precondition', 'Davet workspace bilgisi eksik.');
 
-    const wsRef = db.collection('workspaces').doc(workspaceId);
-    const wsSnap = await wsRef.get();
-    if (!wsSnap.exists) throw new HttpsError('not-found', 'Calisma alani bulunamadi.');
-    const ws = wsSnap.data() || {};
+    const { data: workspace, error: wsError } = await supabase
+      .from('workspaces')
+      .select('*')
+      .eq('id', workspaceId)
+      .single();
 
-    const existingMemberships = await db.collection('workspaces').where('memberUids', 'array-contains', uid).limit(2).get();
-    const hasOtherWorkspace = existingMemberships.docs.some((d) => d.id !== workspaceId);
+    if (wsError || !workspace) throw new HttpsError('not-found', 'Calisma alani bulunamadi.');
+
+    const { data: existingMemberships } = await supabase
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', uid)
+      .limit(2);
+
+    const hasOtherWorkspace = existingMemberships?.some((m) => m.workspace_id !== workspaceId);
     if (hasOtherWorkspace) {
       throw new HttpsError('failed-precondition', 'Zaten baska bir calisma alanina baglisiniz.');
     }
@@ -199,146 +267,113 @@ exports.acceptWorkspaceInviteSecure = onCall(
       joinedAt: new Date().toISOString(),
     });
 
-    await db.runTransaction(async (tx) => {
-      const [liveInviteSnap, liveWsSnap] = await Promise.all([tx.get(inviteRef), tx.get(wsRef)]);
-      if (!liveInviteSnap.exists) throw new HttpsError('not-found', 'Davet bulunamadi.');
-      if (!liveWsSnap.exists) throw new HttpsError('not-found', 'Calisma alani bulunamadi.');
-
-      const liveInvite = liveInviteSnap.data() || {};
-      const status = String(liveInvite.status || '');
-      if (!['pending', 'accepted_sync_pending', 'accepted'].includes(status)) {
-        throw new HttpsError('failed-precondition', 'Bu davet aktif degil.');
-      }
-
-      const liveWs = liveWsSnap.data() || {};
-      const liveMembers = Array.isArray(liveWs.members) ? liveWs.members : [];
-      const workspacePlanConfig = getWorkspacePlanConfig(liveWs.plan);
-      const maxMembers = Number(workspacePlanConfig?.maxMembers || 0);
-      const alreadyMember = (Array.isArray(liveWs.memberUids) ? liveWs.memberUids : []).includes(uid);
-
-      if (!maxMembers) {
-        throw new HttpsError('failed-precondition', 'Bu workspace planinda ekip daveti aktif degil.');
-      }
-
-      if (!alreadyMember && liveMembers.length >= maxMembers) {
-        throw new HttpsError('failed-precondition', `Workspace maksimum uye kapasitesine ulasmis. Bu plan en fazla ${maxMembers} kisi destekler.`);
-      }
-
-      if (!alreadyMember) {
-        tx.update(wsRef, {
-          memberUids: FieldValue.arrayUnion(uid),
-          memberEmails: FieldValue.arrayUnion(email),
-          members: FieldValue.arrayUnion(memberEntry),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      }
-
-      tx.update(inviteRef, {
-        status: 'accepted_sync_pending',
-        acceptedAt: FieldValue.serverTimestamp(),
-        acceptedUid: uid,
-        toUid: uid,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+    await supabase.from('workspace_members').insert({
+      workspace_id: workspaceId,
+      user_id: uid,
+      email: memberEntry.email,
+      display_name: memberEntry.displayName,
+      role: 'member',
+      joined_at: memberEntry.joinedAt,
     });
 
-    try {
-      await syncMemberIntoWorkspaceProjects(workspaceId, memberEntry);
-      await inviteRef.update({
-        status: 'accepted',
-        syncedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+    await supabase
+      .from('workspace_invites')
+      .update({ status: 'accepted', updated_at: new Date().toISOString() })
+      .eq('id', inviteId);
 
-      const notifSnap = await db.collection('notifications').where('inviteId', '==', inviteId).get();
-      const notifBatches = buildChunkedBatches(notifSnap.docs, () => ({
-        read: true,
-      }));
-      await Promise.all(notifBatches.map((b) => b.commit()));
-    } catch (err) {
-      await inviteRef.update({
-        status: 'accepted_sync_pending',
-        syncError: normalizeText(err.message || 'project sync failed', 400),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      throw new HttpsError('aborted', 'Davet kabul edildi fakat proje erisimleri senkronize edilemedi. Tekrar deneyin.');
-    }
+    await syncMemberIntoWorkspaceProjects(workspaceId, memberEntry);
 
     return { success: true };
   }
 );
+
 exports.declineWorkspaceInviteSecure = onCall(
   { region: 'europe-west1' },
   async (request) => {
     const uid = requireAuth(request);
     const inviteId = String(request.data?.inviteId || '').trim();
     const email = normalizeEmail(request.auth?.token?.email || '');
+
     if (!inviteId) throw new HttpsError('invalid-argument', 'inviteId zorunludur.');
 
-    const inviteRef = db.collection('workspaceInvites').doc(inviteId);
-    const inviteSnap = await inviteRef.get();
-    if (!inviteSnap.exists) throw new HttpsError('not-found', 'Davet bulunamadi.');
+    const { data: invite, error: inviteError } = await supabase
+      .from('workspace_invites')
+      .select('*')
+      .eq('id', inviteId)
+      .single();
 
-    const invite = inviteSnap.data() || {};
-    const allowedByUid = invite.toUid && invite.toUid === uid;
-    const allowedByEmail = normalizeEmail(invite.toEmail) === email;
+    if (inviteError || !invite) throw new HttpsError('not-found', 'Davet bulunamadi.');
+
+    const allowedByUid = (invite.to_uid || invite.to_user_id) && (invite.to_uid || invite.to_user_id) === uid;
+    const allowedByEmail = normalizeEmail(invite.to_email) === email;
     if (!allowedByUid && !allowedByEmail) {
       throw new HttpsError('permission-denied', 'Bu daveti reddetme yetkiniz yok.');
     }
 
-    await inviteRef.update({
-      status: 'declined',
-      declinedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    await supabase
+      .from('workspace_invites')
+      .update({ status: 'declined', updated_at: new Date().toISOString() })
+      .eq('id', inviteId);
 
-    const notifSnap = await db.collection('notifications').where('inviteId', '==', inviteId).get();
-    const notifBatches = buildChunkedBatches(notifSnap.docs, () => ({
-      read: true,
-    }));
-    await Promise.all(notifBatches.map((b) => b.commit()));
+    await supabase
+      .from('notifications')
+      .update({ read: true, is_read: true, read_at: new Date().toISOString() })
+      .eq('invite_id', inviteId);
 
     return { success: true };
   }
 );
+
 exports.removeWorkspaceMemberSecure = onCall(
   { region: 'europe-west1' },
   async (request) => {
     const uid = requireAuth(request);
     const workspaceId = String(request.data?.workspaceId || '').trim();
     const memberUid = String(request.data?.memberUid || '').trim();
-    if (!workspaceId || !memberUid) {
-      throw new HttpsError('invalid-argument', 'workspaceId ve memberUid zorunludur.');
-    }
+
+    if (!workspaceId) throw new HttpsError('invalid-argument', 'workspaceId zorunludur.');
+    if (!memberUid) throw new HttpsError('invalid-argument', 'memberUid zorunludur.');
     if (memberUid === uid) {
-      throw new HttpsError('invalid-argument', 'Kendinizi kaldiramazsiniz.');
+      throw new HttpsError('invalid-argument', 'Kendinizi cikaramazsiniz.');
     }
 
-    const wsRef = db.collection('workspaces').doc(workspaceId);
-    const wsSnap = await wsRef.get();
-    if (!wsSnap.exists) throw new HttpsError('not-found', 'Calisma alani bulunamadi.');
+    const { data: workspace, error: wsError } = await supabase
+      .from('workspaces')
+      .select('*')
+      .eq('id', workspaceId)
+      .single();
 
-    const ws = wsSnap.data() || {};
-    if (ws.adminUid !== uid) {
-      throw new HttpsError('permission-denied', 'Sadece workspace yoneticisi uye cikarabilir.');
+    if (wsError || !workspace) {
+      throw new HttpsError('not-found', 'Calisma alani bulunamadi.');
     }
 
-    const members = Array.isArray(ws.members) ? ws.members : [];
-    const member = members.find((m) => String(m?.uid || '') === memberUid);
-    if (!member) return { success: true, skipped: true };
+    if ((workspace.admin_uid || workspace.admin_id) !== uid) {
+      throw new HttpsError('permission-denied', 'Sadece workspace yoneticisi cikarma yapabilir.');
+    }
 
-    await wsRef.update({
-      memberUids: FieldValue.arrayRemove(memberUid),
-      memberEmails: FieldValue.arrayRemove(normalizeEmail(member.email || '')),
-      members: FieldValue.arrayRemove(member),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    const { data: member, error: memberError } = await supabase
+      .from('workspace_members')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .eq('user_id', memberUid)
+      .single();
+
+    if (memberError || !member) {
+      throw new HttpsError('not-found', 'Uye bulunamadi.');
+    }
+
+    await supabase
+      .from('workspace_members')
+      .delete()
+      .eq('workspace_id', workspaceId)
+      .eq('user_id', memberUid);
 
     await syncMemberRemovalFromWorkspaceProjects(workspaceId, memberUid, member.email || '');
 
     return { success: true };
   }
 );
+
 exports.deleteWorkspaceSecure = onCall(
   { region: 'europe-west1' },
   async (request) => {
@@ -346,56 +381,84 @@ exports.deleteWorkspaceSecure = onCall(
     const workspaceId = String(request.data?.workspaceId || '').trim();
     if (!workspaceId) throw new HttpsError('invalid-argument', 'workspaceId zorunludur.');
 
-    const wsRef = db.collection('workspaces').doc(workspaceId);
-    const wsSnap = await wsRef.get();
-    if (!wsSnap.exists) return { success: true, skipped: true };
+    const { data: workspace, error: wsError } = await supabase
+      .from('workspaces')
+      .select('*')
+      .eq('id', workspaceId)
+      .single();
 
-    const ws = wsSnap.data() || {};
-    if (ws.adminUid !== uid) {
+    if (wsError || !workspace) return { success: true, skipped: true };
+
+    if ((workspace.admin_uid || workspace.admin_id) !== uid) {
       throw new HttpsError('permission-denied', 'Sadece workspace yoneticisi silebilir.');
     }
 
-    const workspaceMemberUids = Array.isArray(ws.memberUids) ? ws.memberUids : [];
-    const projects = await getWorkspaceProjects(workspaceId);
-    const projectBatches = buildChunkedBatches(projects, (projDoc) => {
-      const proj = projDoc.data() || {};
-      const ownerUid = proj.uid;
+    const { data: members } = await supabase
+      .from('workspace_members')
+      .select('user_id')
+      .eq('workspace_id', workspaceId);
+
+    const workspaceMemberUids = members?.map((m) => m.user_id) || [];
+
+    const { data: projects } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .eq('is_deleted', false);
+
+    for (const project of projects || []) {
+      const ownerUid = project.uid || project.owner_id;
       const removableUids = new Set(workspaceMemberUids.filter((id) => id !== ownerUid));
-
-      const nextMemberUids = (Array.isArray(proj.memberUids) ? proj.memberUids : []).filter((id) => !removableUids.has(id));
+      const nextMemberUids = (Array.isArray(project.member_uids) ? project.member_uids : [])
+        .filter((id) => !removableUids.has(id));
       if (ownerUid && !nextMemberUids.includes(ownerUid)) nextMemberUids.push(ownerUid);
-      const nextTeam = (Array.isArray(proj.team) ? proj.team : []).filter((member) => !removableUids.has(member.uid));
+      const nextTeam = (Array.isArray(project.team) ? project.team : [])
+        .filter((member) => !removableUids.has(member.uid));
 
-      return {
-        workspaceId: null,
-        workspaceName: null,
-        memberUids: nextMemberUids,
-        team: nextTeam,
-        activityLog: FieldValue.arrayUnion({
-          action: 'workspace_deleted',
-          user: request.auth?.token?.email || uid,
-          timestamp: new Date().toISOString(),
-          details: `Workspace silindigi icin proje bagimsiz moda gecirildi`,
-        }),
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-    });
+      const activityLog = Array.isArray(project.activity_log) ? project.activity_log : [];
+      activityLog.push({
+        action: 'workspace_deleted',
+        user: request.auth?.token?.email || uid,
+        timestamp: new Date().toISOString(),
+        details: `Workspace silindigi icin proje bagimsiz moda gecirildi`,
+      });
 
-    await Promise.all(projectBatches.map((b) => b.commit()));
+      await supabase
+        .from('projects')
+        .update({
+          workspace_id: null,
+          workspace_name: null,
+          member_uids: nextMemberUids,
+          team: nextTeam,
+          activity_log: activityLog,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', project.id);
+    }
 
-    const invitesSnap = await db.collection('workspaceInvites').where('workspaceId', '==', workspaceId).where('status', '==', 'pending').get();
-    const inviteBatches = buildChunkedBatches(invitesSnap.docs, () => ({
-      status: 'cancelled',
-      cancelledAt: FieldValue.serverTimestamp(),
-      cancelledBy: uid,
-      updatedAt: FieldValue.serverTimestamp(),
-    }));
-    await Promise.all(inviteBatches.map((b) => b.commit()));
+    await supabase
+      .from('workspace_invites')
+      .update({
+        status: 'cancelled',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'pending');
 
-    await wsRef.delete();
+    await supabase
+      .from('workspace_members')
+      .delete()
+      .eq('workspace_id', workspaceId);
+
+    await supabase
+      .from('workspaces')
+      .delete()
+      .eq('id', workspaceId);
+
     return { success: true };
   }
 );
+
 exports.adjustWorkspaceStorage = onCall(
   { region: 'europe-west1' },
   async (request) => {
@@ -411,22 +474,36 @@ exports.adjustWorkspaceStorage = onCall(
       throw new HttpsError('invalid-argument', 'bytesDelta sifir disinda sayi olmalidir.');
     }
 
-    const { wsRef } = await getAuthorizedWorkspaceForUser(workspaceId, uid);
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(wsRef);
-      const ws = snap.data() || {};
-      const usedStorage = Math.max(0, Number(ws.usedStorage || 0) + bytesDelta);
-      const poolStorage = Number(ws.poolStorage || 0);
+    await getAuthorizedWorkspaceForUser(workspaceId, uid);
 
-      if (poolStorage > 0 && usedStorage > poolStorage) {
-        throw new HttpsError('failed-precondition', 'Calisma alani depolama limiti asildi.');
-      }
+    const { data: workspace, error: wsError } = await supabase
+      .from('workspaces')
+      .select('used_storage, pool_storage, max_storage')
+      .eq('id', workspaceId)
+      .single();
 
-      tx.update(wsRef, {
-        usedStorage,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    });
+    if (wsError || !workspace) {
+      throw new HttpsError('not-found', 'Workspace bulunamadi.');
+    }
+
+    const usedStorage = Math.max(0, Number(workspace.used_storage || 0) + bytesDelta);
+    const poolStorage = Number(workspace.pool_storage ?? workspace.max_storage ?? 0);
+
+    if (poolStorage > 0 && usedStorage > poolStorage) {
+      throw new HttpsError('failed-precondition', 'Calisma alani depolama limiti asildi.');
+    }
+
+    const { error: updateError } = await supabase
+      .from('workspaces')
+      .update({
+        used_storage: usedStorage,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', workspaceId);
+
+    if (updateError) {
+      throw new HttpsError('internal', updateError.message);
+    }
 
     return { success: true };
   }

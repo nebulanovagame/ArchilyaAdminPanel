@@ -10,8 +10,7 @@ const sessionUser = {
 
 const mocks = vi.hoisted(() => ({
   getOptionalSessionUser: vi.fn(),
-  requireVerifiedFirebaseIdentity: vi.fn(),
-  getFirebaseStorage: vi.fn(),
+  requireVerifiedSupabaseIdentity: vi.fn(),
   uploadWorkspaceLogo: vi.fn(),
   requireWorkspacePermission: vi.fn(),
   rateLimitAllowed: true,
@@ -21,12 +20,8 @@ vi.mock("@/lib/auth/session", () => ({
   getOptionalSessionUser: mocks.getOptionalSessionUser,
 }));
 
-vi.mock("@/lib/firebase/callable-server", () => ({
-  requireVerifiedFirebaseIdentity: mocks.requireVerifiedFirebaseIdentity,
-}));
-
-vi.mock("@/lib/firebase/client", () => ({
-  getFirebaseStorage: mocks.getFirebaseStorage,
+vi.mock("@/lib/supabase/callable", () => ({
+  requireVerifiedSupabaseIdentity: mocks.requireVerifiedSupabaseIdentity,
 }));
 
 vi.mock("@/lib/branding/service", () => ({
@@ -52,9 +47,9 @@ vi.mock("@/lib/api/rate-limit", () => ({
 
 import { POST } from "./route";
 
-function createLogoRequest(overrides: { idToken?: string; workspaceId?: string; logo?: File | null } = {}) {
+function createLogoRequest(overrides: { accessToken?: string; workspaceId?: string; logo?: File | null } = {}) {
   const formData = new FormData();
-  formData.set("idToken", overrides.idToken ?? "valid-id-token-123");
+  formData.set("accessToken", overrides.accessToken ?? "valid-access-token-123");
   formData.set("workspaceId", overrides.workspaceId ?? "workspace-1");
   if (overrides.logo !== null) {
     formData.set("logo", overrides.logo ?? new File([new Uint8Array([1, 2, 3])], "logo.png", { type: "image/png" }));
@@ -68,14 +63,13 @@ describe("POST /api/branding/upload-logo", () => {
     vi.clearAllMocks();
     mocks.rateLimitAllowed = true;
     mocks.getOptionalSessionUser.mockResolvedValue(sessionUser);
-    mocks.requireVerifiedFirebaseIdentity.mockImplementation(async (currentSessionUser) => {
+    mocks.requireVerifiedSupabaseIdentity.mockImplementation(async (currentSessionUser) => {
       if (!currentSessionUser) {
         throw Object.assign(new Error("Oturum bulunamadı. raw-session-detail"), { status: 401 });
       }
 
       return sessionUser;
     });
-    mocks.getFirebaseStorage.mockReturnValue({ storage: true });
     mocks.uploadWorkspaceLogo.mockResolvedValue("https://cdn.example.com/logo.png");
     mocks.requireWorkspacePermission.mockResolvedValue("owner");
   });
@@ -85,9 +79,9 @@ describe("POST /api/branding/upload-logo", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true, logoUrl: "https://cdn.example.com/logo.png" });
-    expect(mocks.requireVerifiedFirebaseIdentity).toHaveBeenCalledWith(sessionUser, "valid-id-token-123");
+    expect(mocks.requireVerifiedSupabaseIdentity).toHaveBeenCalledWith(sessionUser, "valid-access-token-123");
     expect(mocks.requireWorkspacePermission).toHaveBeenCalledWith("user-1", "workspace-1", "workspace.branding");
-    expect(mocks.uploadWorkspaceLogo).toHaveBeenCalledWith({ storage: true }, "workspace-1", expect.any(File));
+    expect(mocks.uploadWorkspaceLogo).toHaveBeenCalledWith(null, "workspace-1", expect.any(File));
   });
 
   it("returns 400 when the multipart form is missing logo", async () => {

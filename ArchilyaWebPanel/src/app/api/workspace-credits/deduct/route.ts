@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getOptionalSessionUser } from "@/lib/auth/session";
-import { callFirebaseCallableFromServer, requireVerifiedFirebaseIdentity } from "@/lib/firebase/callable-server";
+import { callBackendCallableFromServer, requireVerifiedSupabaseIdentity } from "@/lib/supabase/callable";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { checkIdempotency, markIdempotencyCompleted, withRateLimit } from "@/lib/api/rate-limit";
 import { validateRequestBody, workspaceCreditMutationBodySchema } from "@/lib/api/validation";
@@ -16,11 +16,11 @@ async function handler(request: Request) {
   }
 
   try {
-    const { idToken, workspaceId, amount, idempotencyKey } = validated.data;
-    const firebaseUser = await requireVerifiedFirebaseIdentity(sessionUser, idToken);
-    await requireWorkspacePermission(firebaseUser.uid, workspaceId, "workspace.billing");
+    const { accessToken, workspaceId, amount, idempotencyKey } = validated.data;
+    const verifiedUser = await requireVerifiedSupabaseIdentity(sessionUser, accessToken);
+    await requireWorkspacePermission(verifiedUser.uid, workspaceId, "workspace.billing");
 
-    const idempotencyStatus = await checkIdempotency(firebaseUser.uid, idempotencyKey);
+    const idempotencyStatus = await checkIdempotency(verifiedUser.uid, idempotencyKey);
     if (idempotencyStatus === "pending") {
       return NextResponse.json({ error: "İşlem zaten devam ediyor." }, { status: 409 });
     }
@@ -28,8 +28,8 @@ async function handler(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    await callFirebaseCallableFromServer("deductWorkspacePoolCredits", idToken, { workspaceId, amount });
-    await markIdempotencyCompleted(firebaseUser.uid, idempotencyKey, { ok: true });
+    await callBackendCallableFromServer("deductWorkspacePoolCredits", accessToken, { workspaceId, amount });
+    await markIdempotencyCompleted(verifiedUser.uid, idempotencyKey, { ok: true });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

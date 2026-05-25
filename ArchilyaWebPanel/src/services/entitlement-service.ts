@@ -1,21 +1,46 @@
 "use client";
 
-import { httpsCallable } from "firebase/functions";
-
-import { getFirebaseAuth, getFirebaseFunctions } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import type { ChangeSubscriptionResult, ProrationQuote, SubscriptionPlanId } from "@/lib/subscription/types";
 import type { BrandingUpdateInput } from "@/lib/branding/types";
 
 type SecureResult<T> = Promise<T>;
+
+function getBackendBaseUrl() {
+  return (process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://127.0.0.1:8080").replace(/\/+$/, "");
+}
+
+async function getAccessToken() {
+  const supabase = createClient();
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session?.access_token) {
+    throw new Error("Oturum açmanız gerekiyor.");
+  }
+
+  return session.access_token;
+}
 
 async function callSecure<TPayload, TResult>(
   callableName: string,
   payload: TPayload,
   fallback: TResult,
 ): SecureResult<TResult> {
-  const callable = httpsCallable<TPayload, TResult>(getFirebaseFunctions(), callableName);
-  const result = await callable(payload);
-  return result.data ?? fallback;
+  const accessToken = await getAccessToken();
+  const response = await fetch(`${getBackendBaseUrl()}/call/${callableName}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ data: payload }),
+  });
+
+  const result = (await response.json().catch(() => null)) as { data?: TResult; error?: { message?: string } } | null;
+  if (!response.ok || result?.error) {
+    throw new Error(result?.error?.message || `Sunucu isteği başarısız oldu: ${callableName}`);
+  }
+
+  return result?.data ?? fallback;
 }
 
 export async function ensureUserProfileSecure(payload: { email?: string | null; displayName?: string | null } = {}) {
@@ -23,18 +48,13 @@ export async function ensureUserProfileSecure(payload: { email?: string | null; 
 }
 
 async function postServerRoute<TResult>(path: string, payload: Record<string, unknown>) {
-  const currentUser = getFirebaseAuth().currentUser;
-  if (!currentUser) {
-    throw new Error("Oturum açmanız gerekiyor.");
-  }
-
-  const idToken = await currentUser.getIdToken();
+  const accessToken = await getAccessToken();
   const response = await fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ ...payload, idToken }),
+    body: JSON.stringify({ ...payload, accessToken }),
   });
 
   const data = (await response.json().catch(() => null)) as { error?: string; ok?: boolean } | null;
@@ -182,14 +202,9 @@ export async function updateWorkspaceBrandingSecure(workspaceId: string, brandin
 }
 
 export async function uploadWorkspaceLogoSecure(workspaceId: string, file: File) {
-  const currentUser = getFirebaseAuth().currentUser;
-  if (!currentUser) {
-    throw new Error("Oturum açmanız gerekiyor.");
-  }
-
-  const idToken = await currentUser.getIdToken();
+  const accessToken = await getAccessToken();
   const formData = new FormData();
-  formData.append("idToken", idToken);
+  formData.append("accessToken", accessToken);
   formData.append("workspaceId", workspaceId);
   formData.append("logo", file);
 

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { getOptionalSessionUser } from "@/lib/auth/session";
-import { requireVerifiedFirebaseIdentity } from "@/lib/firebase/callable-server";
-import { isAiStudioToolId, getAiStudioToolCreditCost } from "@/lib/ai-studio/tools";
-import { callFirebaseCallableFromServer } from "@/lib/firebase/callable-server";
+import { requireVerifiedSupabaseIdentity } from "@/lib/supabase/callable";
+import { isAiStudioToolId } from "@/lib/ai-studio/tools";
+import { callBackendCallableFromServer } from "@/lib/supabase/callable";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { withRateLimit } from "@/lib/api/rate-limit";
 import { validateRequestBody, aiStudioJobBodySchema } from "@/lib/api/validation";
@@ -18,42 +18,27 @@ async function handler(request: Request) {
 
   try {
     const body = validated.data;
-    const idToken = body.idToken;
+    const accessToken = body.accessToken;
     const toolId = body.toolId;
 
     if (!isAiStudioToolId(toolId)) {
       return NextResponse.json({ error: "Geçerli bir AI aracı (toolId) gönderin." }, { status: 400 });
     }
 
-    const firebaseUser = await requireVerifiedFirebaseIdentity(sessionUser, idToken);
+    const verifiedUser = await requireVerifiedSupabaseIdentity(sessionUser, accessToken);
 
-    // Pre-emptively ensure user profile document exists in Firestore to avoid race conditions/deduct failure
+    // Pre-emptively ensure user profile document exists in backend to avoid race conditions/deduct failure
     try {
-      await callFirebaseCallableFromServer("ensureUserProfile", idToken, {
-        email: firebaseUser.email,
-        displayName: firebaseUser.name,
+      await callBackendCallableFromServer("ensureUserProfile", accessToken, {
+        email: verifiedUser.email,
+        displayName: verifiedUser.name,
       });
     } catch (profileError) {
       console.warn("[ai-studio/jobs/route] Profile pre-creation warning:", profileError);
     }
 
-    const creditCost = getAiStudioToolCreditCost(toolId);
-
     try {
-      await callFirebaseCallableFromServer("deductCredits", idToken, {
-        amount: creditCost,
-        description: `AI Stüdyo: ${toolId}`,
-      });
-    } catch (creditError) {
-      console.error("[ai-studio/jobs/route] Credit deduction failed:", creditError);
-      return apiErrorResponse(creditError, {
-        defaultMessage: "Kredi işlemi tamamlanamadı. Lütfen tekrar deneyin.",
-        backendMessage: "Kredi işlemi tamamlanamadı. Lütfen tekrar deneyin.",
-      });
-    }
-
-    try {
-      const result = await callFirebaseCallableFromServer("createAiStudioJobSecure", idToken, {
+      const result = await callBackendCallableFromServer("createAiStudioJobSecure", accessToken, {
         toolId,
         imagePart: body.imagePart,
         style: body.style || "",
@@ -66,11 +51,6 @@ async function handler(request: Request) {
 
       return NextResponse.json({ success: true, result });
     } catch (queueError) {
-      await callFirebaseCallableFromServer("refundCredits", idToken, {
-        amount: creditCost,
-        description: `AI Stüdyo iade: ${toolId} (queue failed)`,
-      });
-
       return apiErrorResponse(queueError, {
         defaultMessage: "AI işi kuyruğa alınamadı.",
         backendMessage: "AI işi kuyruğa alınamadı. Lütfen tekrar deneyin.",

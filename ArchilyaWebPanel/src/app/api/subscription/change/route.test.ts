@@ -20,11 +20,9 @@ const subscriptionState = {
 };
 
 const mocks = vi.hoisted(() => ({
-  runTransaction: vi.fn(),
   getOptionalSessionUser: vi.fn(),
-  requireVerifiedFirebaseIdentity: vi.fn(),
-  callFirebaseCallableFromServer: vi.fn(),
-  getFirebaseFirestore: vi.fn(),
+  requireVerifiedSupabaseIdentity: vi.fn(),
+  callBackendCallableFromServer: vi.fn(),
   requireWorkspacePermission: vi.fn(),
   calculateProrationQuote: vi.fn(),
   getPlanById: vi.fn(),
@@ -34,25 +32,32 @@ const mocks = vi.hoisted(() => ({
   rateLimitAllowed: true,
 }));
 
-vi.mock("firebase/firestore", () => ({
-  runTransaction: mocks.runTransaction,
-}));
-
 vi.mock("@/lib/auth/session", () => ({
   getOptionalSessionUser: mocks.getOptionalSessionUser,
 }));
 
-vi.mock("@/lib/firebase/callable-server", () => ({
-  requireVerifiedFirebaseIdentity: mocks.requireVerifiedFirebaseIdentity,
-  callFirebaseCallableFromServer: mocks.callFirebaseCallableFromServer,
-}));
-
-vi.mock("@/lib/firebase/client", () => ({
-  getFirebaseFirestore: mocks.getFirebaseFirestore,
+vi.mock("@/lib/supabase/callable", () => ({
+  requireVerifiedSupabaseIdentity: mocks.requireVerifiedSupabaseIdentity,
+  callBackendCallableFromServer: mocks.callBackendCallableFromServer,
 }));
 
 vi.mock("@/lib/rbac/server", () => ({
   requireWorkspacePermission: mocks.requireWorkspacePermission,
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn().mockResolvedValue({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+        }),
+      }),
+      update: () => ({
+        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+      }),
+    }),
+  }),
 }));
 
 vi.mock("@/lib/subscription", () => ({
@@ -91,7 +96,7 @@ vi.mock("../_shared", () => ({
 import { POST } from "./route";
 
 const validBody = {
-  idToken: "valid-id-token-123",
+  accessToken: "valid-access-token-123",
   workspaceId: "workspace-1",
   targetPlanId: "solo",
   quoteId: "quote-1",
@@ -110,7 +115,7 @@ describe("POST /api/subscription/change", () => {
     vi.clearAllMocks();
     mocks.rateLimitAllowed = true;
     mocks.getOptionalSessionUser.mockResolvedValue(sessionUser);
-    mocks.requireVerifiedFirebaseIdentity.mockImplementation(async (currentSessionUser) => {
+    mocks.requireVerifiedSupabaseIdentity.mockImplementation(async (currentSessionUser) => {
       if (!currentSessionUser) {
         throw Object.assign(new Error("Oturum bulunamadı. raw-session-detail"), { status: 401 });
       }
@@ -118,8 +123,7 @@ describe("POST /api/subscription/change", () => {
       return sessionUser;
     });
     mocks.requireWorkspacePermission.mockResolvedValue("owner");
-    mocks.getFirebaseFirestore.mockReturnValue({ db: true });
-    mocks.getUserSubscriptionDocument.mockResolvedValue({ ref: { path: "users/user-1" }, state: subscriptionState });
+    mocks.getUserSubscriptionDocument.mockResolvedValue({ state: subscriptionState });
     mocks.calculateProrationQuote.mockReturnValue({
       changeType: "upgrade",
       amountDueKurus: 100,
@@ -130,16 +134,13 @@ describe("POST /api/subscription/change", () => {
       targetPlanId: "solo",
     });
     mocks.getPlanById.mockReturnValue({ id: "solo" });
-    mocks.callFirebaseCallableFromServer.mockResolvedValue({
+    mocks.callBackendCallableFromServer.mockResolvedValue({
       checkoutFormContent: "<form>checkout</form>",
       token: "checkout-token",
     });
     mocks.readUserSubscriptionState.mockReturnValue(subscriptionState);
     mocks.buildSubscriptionMirrorUpdate.mockReturnValue({ pendingPlanId: "free" });
-    mocks.runTransaction.mockImplementation(async (_db, callback) => callback({
-      get: vi.fn().mockResolvedValue({ data: () => ({}) }),
-      update: vi.fn(),
-    }));
+
   });
 
   it("creates a checkout form for an authorized upgrade", async () => {
@@ -153,7 +154,7 @@ describe("POST /api/subscription/change", () => {
       message: "Plan yükseltme için ödeme formu hazırlandı.",
     });
     expect(mocks.requireWorkspacePermission).toHaveBeenCalledWith("user-1", "workspace-1", "workspace.billing");
-    expect(mocks.callFirebaseCallableFromServer).toHaveBeenCalledWith("createIyzicoCheckoutForm", "valid-id-token-123", {
+    expect(mocks.callBackendCallableFromServer).toHaveBeenCalledWith("createIyzicoCheckoutForm", "valid-access-token-123", {
       planId: "solo",
       userEmail: "user@example.com",
       userId: "user-1",
@@ -167,7 +168,7 @@ describe("POST /api/subscription/change", () => {
     expect(response.status).toBe(400);
     const body = await response.json();
     expect(body.error).toContain("Doğrulama hatası");
-    expect(mocks.callFirebaseCallableFromServer).not.toHaveBeenCalled();
+    expect(mocks.callBackendCallableFromServer).not.toHaveBeenCalled();
   });
 
   it("returns 400 when targetPlanId is not a known plan", async () => {
@@ -175,7 +176,7 @@ describe("POST /api/subscription/change", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "Geçerli bir targetPlanId gönderin." });
-    expect(mocks.callFirebaseCallableFromServer).not.toHaveBeenCalled();
+    expect(mocks.callBackendCallableFromServer).not.toHaveBeenCalled();
   });
 
   it("returns 401 with a safe message when session is missing", async () => {
@@ -187,7 +188,7 @@ describe("POST /api/subscription/change", () => {
     const body = await response.json();
     expect(body).toEqual({ error: "Oturum doğrulanamadı. Lütfen tekrar giriş yapın." });
     expect(body.error).not.toContain("raw-session-detail");
-    expect(mocks.callFirebaseCallableFromServer).not.toHaveBeenCalled();
+    expect(mocks.callBackendCallableFromServer).not.toHaveBeenCalled();
   });
 
   it("schedules a downgrade without creating checkout", async () => {
@@ -213,8 +214,7 @@ describe("POST /api/subscription/change", () => {
       scheduledDowngrade: true,
       message: "Plan değişikliği dönem sonunda uygulanmak üzere planlandı.",
     });
-    expect(mocks.runTransaction).toHaveBeenCalled();
-    expect(mocks.callFirebaseCallableFromServer).not.toHaveBeenCalled();
+    expect(mocks.callBackendCallableFromServer).not.toHaveBeenCalled();
   });
 
   it("returns 429 when the rate limiter blocks the change", async () => {
@@ -228,7 +228,7 @@ describe("POST /api/subscription/change", () => {
   });
 
   it("does not leak raw payment provider errors", async () => {
-    mocks.callFirebaseCallableFromServer.mockRejectedValueOnce(new Error("raw iyzico provider stack"));
+    mocks.callBackendCallableFromServer.mockRejectedValueOnce(new Error("raw iyzico provider stack"));
 
     const response = await POST(createJsonRequest(validBody));
 

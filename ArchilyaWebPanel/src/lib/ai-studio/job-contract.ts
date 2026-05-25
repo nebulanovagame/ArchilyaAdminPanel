@@ -1,4 +1,3 @@
-import type { DocumentSnapshot, Timestamp } from "firebase/firestore";
 import type { AiStudioJobFeedback } from "./service";
 
 export const AI_STUDIO_JOB_SUBCOLLECTION = "aiStudioJobs";
@@ -21,6 +20,8 @@ export type AiStudioJobDocument = {
   id: string;
   exists: boolean;
   uid: string;
+  userId: string;
+  workspaceId: string;
   email: string;
   status: AiStudioJobStatus;
   progressMessage: string;
@@ -37,10 +38,19 @@ export type AiStudioJobDocument = {
   sourceImageUri: string;
   result: AiStudioJobResult;
   error: AiStudioJobErrorState | null;
-  createdAt: Timestamp | Date | null;
-  updatedAt: Timestamp | Date | null;
-  startedAt: Timestamp | Date | null;
-  completedAt: Timestamp | Date | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  failedAt: Date | null;
+  queuedAt: Date | null;
+  attemptCount: number;
+  lockedAt: Date | null;
+  lastAttemptError: unknown;
+  creditCost: number;
+  errorMessage: string;
+  billing: unknown;
+  metadata: Record<string, unknown>;
   feedback: AiStudioJobFeedback;
 };
 
@@ -48,6 +58,8 @@ export const INITIAL_AI_STUDIO_JOB: AiStudioJobDocument = {
   id: "",
   exists: false,
   uid: "",
+  userId: "",
+  workspaceId: "",
   email: "",
   status: "pending",
   progressMessage: "",
@@ -72,6 +84,15 @@ export const INITIAL_AI_STUDIO_JOB: AiStudioJobDocument = {
   updatedAt: null,
   startedAt: null,
   completedAt: null,
+  failedAt: null,
+  queuedAt: null,
+  attemptCount: 0,
+  lockedAt: null,
+  lastAttemptError: null,
+  creditCost: 0,
+  errorMessage: "",
+  billing: null,
+  metadata: {},
   feedback: null,
 };
 
@@ -88,7 +109,34 @@ function readNumber(value: unknown) {
 }
 
 function readDateValue(value: unknown) {
-  return value instanceof Date || isRecord(value) ? (value as Timestamp | Date) : null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function readFirstString(...values: unknown[]) {
+  for (const value of values) {
+    const normalized = readString(value);
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function readFirstNumber(...values: unknown[]) {
+  for (const value of values) {
+    const normalized = readNumber(value);
+    if (normalized) return normalized;
+  }
+  return 0;
+}
+
+function readFirstDate(...values: unknown[]) {
+  for (const value of values) {
+    const normalized = readDateValue(value);
+    if (normalized) return normalized;
+  }
+  return null;
 }
 
 function normalizeOutputType(value: unknown, fallback: AiStudioJobOutputType = "image"): AiStudioJobOutputType {
@@ -109,8 +157,8 @@ export function isAiStudioJobTerminal(job: Pick<AiStudioJobDocument, "status"> |
   return job?.status === "completed" || job?.status === "failed" || job?.status === "cancelled";
 }
 
-export function mapAiStudioJobSnapshot(snapshot: DocumentSnapshot, fallbackId = "") {
-  if (!snapshot.exists()) {
+export function mapAiStudioJobSnapshot(snapshot: { id: string; data: () => Record<string, unknown>; exists: boolean }, fallbackId = "") {
+  if (!snapshot.exists) {
     return {
       ...INITIAL_AI_STUDIO_JOB,
       id: fallbackId,
@@ -124,12 +172,13 @@ export function mapAiStudioJobSnapshot(snapshot: DocumentSnapshot, fallbackId = 
   const result = isRecord(data.result) ? data.result : {};
   const resultImage = isRecord(result.image) ? result.image : {};
   const error = isRecord(data.error) ? data.error : {};
+  const metadata = isRecord(data.metadata) ? data.metadata : {};
   const sceneReferences = Array.isArray(data.sceneReferences)
     ? data.sceneReferences
     : Array.isArray(request.sceneReferences)
       ? request.sceneReferences
       : [];
-  const toolId = readString(data.toolId) || readString(request.toolId);
+  const toolId = readFirstString(data.tool_id, data.toolId, request.tool_id, request.toolId, metadata.toolId);
   const style = readString(data.style) || readString(request.style);
   const sceneEditMode = readString(data.sceneEditMode) || readString(data.workflow) || readString(request.sceneEditMode) || readString(request.workflow);
   const extraNote = readString(data.extraNote) || readString(request.extraNote);
@@ -144,9 +193,11 @@ export function mapAiStudioJobSnapshot(snapshot: DocumentSnapshot, fallbackId = 
     || readString(data.url)
     || readString(data.dataUrl)
     || readString(data.resultImageUrl)
+    || readString(data.result_url)
     || readString(data.resultDataUrl)
     || readString(data.savedFileUrl);
   const resultText = readString(result.text)
+    || readString(data.result_text)
     || readString(data.resultText)
     || readString(data.text)
     || readString(data.resultTextPreview);
@@ -154,18 +205,21 @@ export function mapAiStudioJobSnapshot(snapshot: DocumentSnapshot, fallbackId = 
     || readString(result.mimeType)
     || readString(data.mimeType)
     || readString(data.resultMimeType);
-  const outputType = normalizeOutputType(data.outputType, imageUrl ? "image" : resultText ? "text" : normalizeOutputType(request.outputType));
-  const errorMessage = readString(error.message) || readString(data.errorMessage);
+  const outputType = normalizeOutputType(data.output_type, normalizeOutputType(data.outputType, imageUrl ? "image" : resultText ? "text" : normalizeOutputType(request.output_type, normalizeOutputType(request.outputType))));
+  const errorMessage = readFirstString(data.error_message, error.message, data.errorMessage);
+  const uid = readFirstString(data.user_id, data.userId, data.uid, metadata.uid);
 
   return {
     id: snapshot.id,
     exists: true,
-    uid: readString(data.uid),
-    email: readString(data.email),
+    uid,
+    userId: uid,
+    workspaceId: readFirstString(data.workspace_id, data.workspaceId),
+    email: readFirstString(data.email, metadata.email),
     status: normalizeAiStudioJobStatus(data.status),
-    progressMessage: readString(data.progressMessage) || readString(data.statusMessage) || readString(data.message),
+    progressMessage: readFirstString(data.progress_message, data.progressMessage, data.statusMessage, data.message, metadata.progressMessage),
     toolId,
-    toolLabel: readString(data.toolLabel) || readString(request.toolLabel),
+    toolLabel: readFirstString(data.tool_label, data.toolLabel, request.tool_label, request.toolLabel, metadata.toolLabel),
     outputType,
     style,
     sceneEditMode,
@@ -181,13 +235,22 @@ export function mapAiStudioJobSnapshot(snapshot: DocumentSnapshot, fallbackId = 
       mimeType,
     },
     error: errorMessage ? {
-      code: readString(error.code) || readString(data.errorCode),
+      code: readFirstString(error.code, data.error_code, data.errorCode),
       message: errorMessage,
     } : null,
-    createdAt: readDateValue(data.createdAt),
-    updatedAt: readDateValue(data.updatedAt),
-    startedAt: readDateValue(data.startedAt),
-    completedAt: readDateValue(data.completedAt),
+    createdAt: readFirstDate(data.created_at, data.createdAt),
+    updatedAt: readFirstDate(data.updated_at, data.updatedAt),
+    startedAt: readFirstDate(data.started_at, data.startedAt),
+    completedAt: readFirstDate(data.completed_at, data.completedAt),
+    failedAt: readFirstDate(data.failed_at, data.failedAt),
+    queuedAt: readFirstDate(data.queued_at, data.queuedAt),
+    attemptCount: readFirstNumber(data.attempt_count, data.attemptCount),
+    lockedAt: readFirstDate(data.locked_at, data.lockedAt),
+    lastAttemptError: data.last_attempt_error ?? data.lastAttemptError ?? null,
+    creditCost: readFirstNumber(data.credit_cost, data.creditCost),
+    errorMessage,
+    billing: data.billing ?? null,
+    metadata,
     feedback: data.feedback === "positive" ? "positive" : data.feedback === "negative" ? "negative" : null,
   } satisfies AiStudioJobDocument;
 }

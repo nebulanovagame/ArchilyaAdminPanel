@@ -12,7 +12,6 @@ import { useProjects } from "@/hooks/use-projects";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { createActivityLogEntry } from "@/lib/activity/service";
 import { isAiStudioJobTerminal } from "@/lib/ai-studio/job-contract";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
 import { logAiGenerationSuccess } from "@/lib/analytics/events";
 import { saveAiJobFeedback } from "@/lib/ai-studio/service";
 import type { AiStudioJobFeedback } from "@/lib/ai-studio/service";
@@ -43,7 +42,7 @@ import {
 export function useAiStudioState() {
   const t = useTranslations();
   const { currentUser, loading: authLoading } = useAuth();
-  const ownerName = currentUser?.displayName?.trim() || currentUser?.email?.split("@")[0] || t("common.user");
+  const ownerName = currentUser?.name?.trim() || currentUser?.email?.split("@")[0] || t("common.user");
   const { credits, hasEnough } = useCredits();
   const { projects, refresh: refreshProjects } = useProjects(currentUser?.uid ?? null, currentUser?.email ?? null, ownerName, true, "", null);
   const { updatePoolStorage, activeWorkspace } = useWorkspace();
@@ -654,13 +653,13 @@ export function useAiStudioState() {
 
       if (currentUser?.uid && activeWorkspace?.id) {
         try {
-          await createActivityLogEntry(getFirebaseFirestore(), {
+          await createActivityLogEntry(null, {
             workspaceId: activeWorkspace.id,
             category: "ai",
             action: "aiJobQueued",
             actorUid: currentUser.uid,
             actorEmail: currentUser.email || "",
-            actorName: currentUser.displayName || currentUser.email || t("common.user"),
+      actorName: currentUser.name || currentUser.email || t("common.user"),
             targetType: "ai_job",
             targetId: jobId,
             targetName: getToolLabel(selectedTool),

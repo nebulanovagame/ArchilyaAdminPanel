@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { brandingUploadLogoFormSchema } from "@/lib/api/validation";
 
 const validFormData = {
-  idToken: "valid-token-123",
+  accessToken: "valid-token-123",
   workspaceId: "workspace-1",
 };
 

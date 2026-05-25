@@ -1,11 +1,9 @@
-import { doc, getDoc, serverTimestamp, type DocumentReference, type DocumentData, type FieldValue } from "firebase/firestore";
-
-import { getFirebaseFirestore } from "@/lib/firebase/client";
 import type { SubscriptionPlanId, SubscriptionStatus } from "@/lib/subscription/types";
 
 const SUBSCRIPTION_PLAN_IDS = ["free", "solo", "pro", "studio"] as const satisfies ReadonlyArray<SubscriptionPlanId>;
 
-type FirestoreTimestampLike = {
+/** @deprecated Legacy timestamp format. Data should now arrive as ISO strings or Date objects. */
+type LegacyTimestampLike = {
   toDate: () => Date;
 };
 
@@ -32,7 +30,6 @@ export type UserSubscriptionState = {
 
 export type UserSubscriptionDocument = {
   data: Record<string, unknown>;
-  ref: DocumentReference<DocumentData, DocumentData>;
   state: UserSubscriptionState;
 };
 
@@ -44,7 +41,7 @@ export function isSubscriptionPlanId(value: string): value is SubscriptionPlanId
   return SUBSCRIPTION_PLAN_IDS.some((planId) => planId === value);
 }
 
-function isFirestoreTimestampLike(value: unknown): value is FirestoreTimestampLike {
+function isLegacyTimestampLike(value: unknown): value is LegacyTimestampLike {
   return Boolean(
     value
     && typeof value === "object"
@@ -63,7 +60,7 @@ export function toDate(value: unknown): Date | null {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
-  if (isFirestoreTimestampLike(value)) {
+  if (isLegacyTimestampLike(value)) {
     const parsed = value.toDate();
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
@@ -147,34 +144,34 @@ export function readUserSubscriptionState(data: Record<string, unknown>): UserSu
 }
 
 export async function getUserSubscriptionDocument(uid: string): Promise<UserSubscriptionDocument> {
-  const ref = doc(getFirebaseFirestore(), "users", uid);
-  const snapshot = await getDoc(ref);
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", uid)
+    .single();
 
-  if (!snapshot.exists()) {
+  if (error || !data) {
     throw new ApiRouteError(404, "Kullanıcı profili bulunamadı.");
   }
 
-  const data: Record<string, unknown> = snapshot.data();
-
   return {
-    data,
-    ref,
-    state: readUserSubscriptionState(data),
+    data: data as Record<string, unknown>,
+    state: readUserSubscriptionState(data as Record<string, unknown>),
   };
 }
-
-type SubscriptionUpdateValue = FieldValue | string | number | boolean | null | undefined;
 
 export function buildSubscriptionMirrorUpdate(input: {
   autoRenew?: boolean;
   billingCreditBalanceKurus?: number;
-  cancelledAt?: null | ReturnType<typeof serverTimestamp>;
+  cancelledAt?: null | string;
   pendingPlanId?: SubscriptionPlanId | null;
   planId?: SubscriptionPlanId;
   status?: SubscriptionStatus;
 }) {
-  const update: Record<string, SubscriptionUpdateValue> = {
-    updatedAt: serverTimestamp(),
+  const update: Record<string, string | number | boolean | null | undefined> = {
+    updated_at: new Date().toISOString(),
   };
 
   if (input.status !== undefined) {
@@ -194,7 +191,7 @@ export function buildSubscriptionMirrorUpdate(input: {
   }
 
   if (input.cancelledAt !== undefined) {
-    update.subscriptionCancelledAt = input.cancelledAt;
+    update.subscription_cancelled_at = input.cancelledAt;
     update.cancelledAt = input.cancelledAt;
   }
 

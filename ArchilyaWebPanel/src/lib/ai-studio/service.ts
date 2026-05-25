@@ -1,5 +1,4 @@
-import { doc, updateDoc } from "firebase/firestore";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 
 export type AiStudioJobFeedback = "positive" | "negative" | null;
 
@@ -8,11 +7,30 @@ export async function saveAiJobFeedback(
   jobId: string,
   feedback: AiStudioJobFeedback,
 ): Promise<void> {
-  const db = getFirebaseFirestore();
-  const jobRef = doc(db, "users", uid, "aiStudioJobs", jobId);
+  if (!feedback || feedback === null) return;
 
-  await updateDoc(jobRef, {
-    feedback,
-    updatedAt: new Date().toISOString(),
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+
+  if (!accessToken) {
+    console.warn("[ai-studio] saveAiJobFeedback: No session");
+    throw new Error("Oturum bulunamadı.");
+  }
+
+  const response = await fetch("/api/ai-studio/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accessToken,
+      jobId,
+      feedback,
+    }),
   });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    console.warn("[ai-studio] saveAiJobFeedback error:", data?.error || response.statusText);
+    throw new Error("Geri bildirim kaydedilemedi.");
+  }
 }

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { DashboardShellProvider } from "./dashboard-shell-provider";
 import Sidebar from "./sidebar";
 import MobileDrawer from "./mobile-drawer";
@@ -27,7 +28,9 @@ export default function DashboardShell({
           {/* Header — server, renders client islands for interactivity */}
           <Header sessionUser={sessionUser} />
 
-          <main className="flex-1 overflow-y-auto">{children}</main>
+          <main className="flex-1 overflow-y-auto">
+            <Suspense fallback={null}>{children}</Suspense>
+          </main>
         </div>
       </div>
     </DashboardShellProvider>

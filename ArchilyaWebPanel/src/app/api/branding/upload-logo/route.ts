@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getOptionalSessionUser } from "@/lib/auth/session";
-import { requireVerifiedFirebaseIdentity } from "@/lib/firebase/callable-server";
-import { getFirebaseStorage } from "@/lib/firebase/client";
+import { requireVerifiedSupabaseIdentity } from "@/lib/supabase/callable";
 import { uploadWorkspaceLogo } from "@/lib/branding/service";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { withRateLimit } from "@/lib/api/rate-limit";
@@ -19,13 +18,12 @@ async function handler(request: Request) {
       return validation.errorResponse;
     }
 
-    const { idToken, workspaceId, logo: file } = validation.data;
+    const { accessToken, workspaceId, logo: file } = validation.data;
 
-    const firebaseUser = await requireVerifiedFirebaseIdentity(sessionUser, idToken);
-    await requireWorkspacePermission(firebaseUser.uid, workspaceId, "workspace.branding");
+    const verifiedUser = await requireVerifiedSupabaseIdentity(sessionUser, accessToken);
+    await requireWorkspacePermission(verifiedUser.uid, workspaceId, "workspace.branding");
 
-    const storage = getFirebaseStorage();
-    const logoUrl = await uploadWorkspaceLogo(storage, workspaceId, file);
+    const logoUrl = await uploadWorkspaceLogo(null, workspaceId, file);
 
     return NextResponse.json({ success: true, logoUrl });
   } catch (error) {

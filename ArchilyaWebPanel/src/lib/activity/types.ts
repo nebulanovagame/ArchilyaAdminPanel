@@ -1,5 +1,3 @@
-import type { Timestamp } from "firebase/firestore";
-
 export type ActivityCategory = "member" | "project" | "credit" | "ai" | "subscription" | "file" | "workspace";
 
 export type ActivityAction =
@@ -38,7 +36,7 @@ export type ActivityLogRecord = {
   targetId: string;
   targetName: string;
   metadata: Record<string, unknown>;
-  timestamp: Date | Timestamp | string | null;
+  timestamp: Date | string | null;
   category: ActivityCategory;
 };
 
@@ -47,8 +45,8 @@ export type ActivityLogQueryOptions = {
   category?: ActivityCategory;
   action?: ActivityAction;
   actorUid?: string;
-  fromDate?: Date | Timestamp | string | null;
-  toDate?: Date | Timestamp | string | null;
+  fromDate?: Date | string | null;
+  toDate?: Date | string | null;
   pageSize?: number;
   cursor?: unknown;
 };

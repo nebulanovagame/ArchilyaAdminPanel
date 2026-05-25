@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { collection, query, where, type QuerySnapshot } from "firebase/firestore";
 import { motion } from "framer-motion";
 import {
   CreditCard, Sparkles, Zap, Crown, Check,
@@ -14,9 +13,8 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/components/providers/auth-provider";
 import { ADD_ON_PACKAGES, SUBSCRIPTION_PLANS } from "@/data/pricing-data";
 import { useCredits } from "@/hooks/use-credits";
-import { usePaginatedFirestoreQuery } from "@/hooks/use-paginated-firestore-query";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
 import { logSubscriptionChanged } from "@/lib/analytics/events";
 import {
   createIyzicoCheckoutFormSecure,
@@ -169,18 +167,19 @@ export default function AbonelikPage() {
   const [currentTime] = useState(() => Date.now());
 
   const userId = currentUser?.uid ?? null;
-  const historyBaseQuery = useMemo(
-    () => (userId ? query(
-      collection(getFirebaseFirestore(), "creditTransactions"),
-      where("userId", "==", userId),
-    ) : null),
+  const historyFilters = useMemo(
+    () => (userId ? [{ column: "user_id", value: userId }] : []),
     [userId],
   );
 
-  const mapHistorySnapshot = useCallback((snapshot: QuerySnapshot) => {
-    return snapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...(docSnap.data() as Omit<BillingHistoryRow, "id">),
+  const mapHistoryRows = useCallback((rows: Record<string, unknown>[]) => {
+    return rows.map((row) => ({
+      id: String(row.id || ""),
+      label: String(row.description || row.type || ""),
+      credits: Number(row.amount || 0),
+      amount: 0,
+      status: String(row.type || ""),
+      createdAt: row.created_at as BillingHistoryRow["createdAt"],
     }));
   }, []);
 
@@ -191,12 +190,13 @@ export default function AbonelikPage() {
     error: historyError,
     hasMore: historyHasMore,
     loadMore: loadMoreHistory,
-  } = usePaginatedFirestoreQuery({
-    baseQuery: historyBaseQuery,
-    orderByField: "createdAt",
+  } = usePaginatedQuery({
+    table: "credit_transactions",
+    filters: historyFilters,
+    orderByField: "created_at",
     orderDirection: "desc",
     pageSize: 10,
-    mapSnapshot: mapHistorySnapshot,
+    mapRows: mapHistoryRows,
     enabled: Boolean(currentUser?.uid),
   });
 
@@ -258,7 +258,7 @@ export default function AbonelikPage() {
         planConfig.id,
         currentUser.uid,
         currentUser.email || "",
-        currentUser.displayName || t("common.user"),
+        currentUser.name || t("common.user"),
       );
 
       if (!result?.token || !result?.checkoutFormContent) {

@@ -1,19 +1,58 @@
 "use client";
 
-import { httpsCallable } from "firebase/functions";
+import { createClient } from "@/lib/supabase/client";
 
-import { getFirebaseAuth, getFirebaseFunctions } from "@/lib/firebase/client";
+async function getAccessToken() {
+  const supabase = createClient();
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session?.access_token) {
+    throw new Error("Oturum açmanız gerekiyor.");
+  }
+  return session.access_token;
+}
+
+function getBackendBaseUrl() {
+  return (process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://127.0.0.1:8080").replace(/\/+$/, "");
+}
+
+async function callBackendAiCallable<TPayload, TResult>(
+  callableName: string,
+  payload: TPayload,
+  timeoutMs = 120_000,
+): Promise<{ data: TResult }> {
+  const accessToken = await getAccessToken();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${getBackendBaseUrl()}/call/${callableName}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ data: payload }),
+      signal: controller.signal,
+    });
+
+    const result = (await response.json().catch(() => null)) as {
+      data?: TResult;
+      result?: TResult;
+      error?: { message?: string };
+    } | null;
+
+    if (!response.ok || result?.error) {
+      throw new Error(result?.error?.message || `AI servisi başarısız oldu: ${callableName}`);
+    }
+
+    return { data: (result?.data ?? result?.result) as TResult };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 const AI_TEXT_TIMEOUT_MS = 120_000;
 const AI_PLAN_COLOR_TIMEOUT_MS = 520_000;
-
-const runAiStudioToolSecureText = httpsCallable(getFirebaseFunctions(), "runAiStudioToolSecure", {
-  timeout: AI_TEXT_TIMEOUT_MS,
-});
-
-const runAiStudioToolSecurePlanColor = httpsCallable(getFirebaseFunctions(), "runAiStudioToolSecure", {
-  timeout: AI_PLAN_COLOR_TIMEOUT_MS,
-});
 
 const MAX_PROXY_IMAGE_BYTES = 6 * 1024 * 1024;
 const TARGET_PROXY_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -402,13 +441,16 @@ async function prepareImagePart(imageFile?: File | null, imageUrl?: string | nul
 }
 
 async function generateText(imagePart: InlineImagePart, toolId: string, extraNote = "") {
-  const result = await runAiStudioToolSecureText({
+  const result = await callBackendAiCallable<
+    { toolId: string; imagePart: InlineImagePart; extraNote: string },
+    { text?: string }
+  >("runAiStudioToolSecure", {
     toolId,
     imagePart,
     extraNote: String(extraNote || "").trim(),
-  });
+  }, AI_TEXT_TIMEOUT_MS);
 
-  return (result.data as { text?: string } | undefined)?.text || "";
+  return result.data?.text || "";
 }
 
 async function callCreateAiStudioJob(payload: Record<string, unknown>, path = "/api/ai-studio/jobs") {
@@ -416,18 +458,13 @@ async function callCreateAiStudioJob(payload: Record<string, unknown>, path = "/
 }
 
 async function postAiStudioJobRoute(payload: Record<string, unknown>, path = "/api/ai-studio/jobs") {
-  const currentUser = getFirebaseAuth().currentUser;
-  if (!currentUser) {
-    throw new Error("Oturum açmanız gerekiyor.");
-  }
-
-  const idToken = await currentUser.getIdToken();
+  const accessToken = await getAccessToken();
   const response = await fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ ...payload, idToken }),
+    body: JSON.stringify({ ...payload, accessToken }),
   });
 
   const data = (await response.json().catch(() => null)) as { error?: string; result?: CreateAiStudioJobCallableResult } | null;
@@ -565,14 +602,17 @@ export async function colorFloorPlan(imageFile?: File | null, imageUrl?: string 
   const imagePart = await prepareImagePart(imageFile, imageUrl, { profile: "plan" });
   if (!imagePart) throw new Error("Plan boyama için görsel zorunludur.");
 
-  const result = await runAiStudioToolSecurePlanColor({
+  const result = await callBackendAiCallable<
+    { toolId: string; imagePart: InlineImagePart; style: string; extraNote: string },
+    { downloadUrl?: string; mimeType?: string }
+  >("runAiStudioToolSecure", {
     toolId: "plancolor",
     imagePart,
     style: String(style || "modern").trim() || "modern",
     extraNote: String(extraNote || "").trim(),
-  });
+  }, AI_PLAN_COLOR_TIMEOUT_MS);
 
-  const data = result.data as { downloadUrl?: string; mimeType?: string } | undefined;
+  const data = result.data;
   if (!data?.downloadUrl) throw new Error("Model görsel üretemedi.");
   return { dataUrl: data.downloadUrl, mimeType: data.mimeType || "image/png" };
 }
@@ -666,17 +706,16 @@ export async function generatePromptInspiration({
   const imagePart = await prepareImagePart(imageFile, imageUrl);
   if (!imagePart) throw new Error("Görsel analizi için görsel zorunludur.");
 
-  const runPromptInspiration = httpsCallable(getFirebaseFunctions(), "generateAiStudioPromptInspirationSecure", {
-    timeout: 60_000,
-  });
-
-  const result = await runPromptInspiration({
+  const result = await callBackendAiCallable<
+    { imagePart: InlineImagePart; style: string; targetTool: string },
+    { text?: string }
+  >("generateAiStudioPromptInspirationSecure", {
     imagePart,
     style: String(style || "modern").trim() || "modern",
     targetTool: String(targetTool || "img2img").trim() || "img2img",
-  });
+  }, 60_000);
 
-  const data = result.data as { text?: string } | undefined;
+  const data = result.data;
   if (!data?.text) throw new Error("Prompt oluşturulamadı.");
   return { text: data.text };
 }

@@ -9,6 +9,10 @@ function readString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readStringField(data: Record<string, unknown>, camelKey: string, snakeKey = camelKey) {
+  return readString(data[camelKey] ?? data[snakeKey]);
+}
+
 function readMetadata(value: unknown) {
   return isRecord(value) ? value : {};
 }
@@ -62,16 +66,16 @@ function formatTarget(record: ActivityLogRecord) {
 export function mapActivityLogDocument(id: string, data: Record<string, unknown>): ActivityLogRecord {
   return {
     id,
-    workspaceId: readString(data.workspaceId),
+    workspaceId: readStringField(data, "workspaceId", "workspace_id"),
     action: readAction(data.action),
-    actorUid: readString(data.actorUid),
-    actorEmail: readString(data.actorEmail),
-    actorName: readString(data.actorName),
-    targetType: readString(data.targetType),
-    targetId: readString(data.targetId),
-    targetName: readString(data.targetName),
+    actorUid: readStringField(data, "actorUid", "actor_uid") || readStringField(data, "actorId", "actor_id"),
+    actorEmail: readStringField(data, "actorEmail", "actor_email"),
+    actorName: readStringField(data, "actorName", "actor_name"),
+    targetType: readStringField(data, "targetType", "target_type"),
+    targetId: readStringField(data, "targetId", "target_id"),
+    targetName: readStringField(data, "targetName", "target_name"),
     metadata: readMetadata(data.metadata),
-    timestamp: toDate(data.timestamp) || null,
+    timestamp: toDate(data.timestamp ?? data.created_at ?? data.createdAt) || null,
     category: readCategory(data.category),
   };
 }

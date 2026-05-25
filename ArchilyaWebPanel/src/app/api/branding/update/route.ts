@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getOptionalSessionUser } from "@/lib/auth/session";
-import { requireVerifiedFirebaseIdentity } from "@/lib/firebase/callable-server";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
+import { requireVerifiedSupabaseIdentity } from "@/lib/supabase/callable";
 import { updateWorkspaceBranding } from "@/lib/branding/service";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { withRateLimit } from "@/lib/api/rate-limit";
@@ -18,13 +17,12 @@ async function handler(request: Request) {
   }
 
   try {
-    const { idToken, workspaceId, branding } = validated.data;
+    const { accessToken, workspaceId, branding } = validated.data;
 
-    const firebaseUser = await requireVerifiedFirebaseIdentity(sessionUser, idToken);
-    await requireWorkspacePermission(firebaseUser.uid, workspaceId, "workspace.branding");
+    const verifiedUser = await requireVerifiedSupabaseIdentity(sessionUser, accessToken);
+    await requireWorkspacePermission(verifiedUser.uid, workspaceId, "workspace.branding");
 
-    const db = getFirebaseFirestore();
-    await updateWorkspaceBranding(db, workspaceId, branding ?? {});
+    await updateWorkspaceBranding(null, workspaceId, branding ?? {});
 
     return NextResponse.json({ success: true });
   } catch (error) {

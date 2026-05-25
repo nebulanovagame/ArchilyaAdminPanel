@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getOptionalSessionUser } from "@/lib/auth/session";
-import { requireVerifiedFirebaseIdentity } from "@/lib/firebase/callable-server";
+import { requireVerifiedSupabaseIdentity } from "@/lib/supabase/callable";
 import { calculateProrationQuote, type ProrationQuote } from "@/lib/subscription/proration";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { withRateLimit } from "@/lib/api/rate-limit";
@@ -19,15 +19,15 @@ async function handler(request: Request) {
   }
 
   try {
-    const { idToken, workspaceId, targetPlanId } = validated.data;
+    const { accessToken, workspaceId, targetPlanId } = validated.data;
 
     if (!isSubscriptionPlanId(targetPlanId)) {
       return NextResponse.json({ error: "Geçerli bir targetPlanId gönderin." }, { status: 400 });
     }
 
-    const firebaseUser = await requireVerifiedFirebaseIdentity(sessionUser, idToken);
-    await requireWorkspacePermission(firebaseUser.uid, workspaceId, "workspace.billing");
-    const { state } = await getUserSubscriptionDocument(firebaseUser.uid);
+    const verifiedUser = await requireVerifiedSupabaseIdentity(sessionUser, accessToken);
+    await requireWorkspacePermission(verifiedUser.uid, workspaceId, "workspace.billing");
+    const { state } = await getUserSubscriptionDocument(verifiedUser.uid);
 
     const quote: ProrationQuote = calculateProrationQuote(
       state.planId,

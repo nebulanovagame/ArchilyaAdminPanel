@@ -4,7 +4,7 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
-const nextConfig: NextConfig = {
+    const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
@@ -27,19 +27,11 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com blob: data:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.cloudfunctions.net https://*.ingest.de.sentry.io https://*.sentry.io https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; font-src 'self'",
+              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' http://localhost:3000 ws://localhost:3000 http://127.0.0.1:3000 ws://127.0.0.1:3000 http://127.0.0.1:8080 http://localhost:8080 https://supabase.archilya.com wss://supabase.archilya.com https://*.ingest.de.sentry.io https://*.sentry.io; font-src 'self'",
           },
         ],
       },
     ];
-  },
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "firebasestorage.googleapis.com",
-      },
-    ],
   },
 };
 

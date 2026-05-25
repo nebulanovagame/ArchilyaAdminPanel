@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-export const idTokenSchema = z.string().min(10).max(8192);
+export const accessTokenSchema = z.string().min(10).max(8192);
+/**
+ * @deprecated Use accessTokenSchema instead.
+ * TODO: Remove after all API consumers send `accessToken` field instead of `idToken`.
+ */
+export const idTokenSchema = accessTokenSchema;
 
 export const positiveIntegerSchema = z.number().int().min(1).max(1_000_000_000);
 
 export const idempotencyKeySchema = z.string().min(8).max(128).regex(/^[A-Za-z0-9_-]+$/);
 
 export const creditMutationBodySchema = z.object({
-  idToken: idTokenSchema,
+  accessToken: accessTokenSchema,
   workspaceId: z.string().min(1).max(128),
   amount: positiveIntegerSchema,
   idempotencyKey: idempotencyKeySchema,
@@ -16,7 +21,7 @@ export const creditMutationBodySchema = z.object({
 });
 
 export const workspaceCreditMutationBodySchema = z.object({
-  idToken: idTokenSchema,
+  accessToken: accessTokenSchema,
   workspaceId: z.string().min(1).max(128),
   amount: positiveIntegerSchema,
   idempotencyKey: idempotencyKeySchema,
@@ -24,30 +29,30 @@ export const workspaceCreditMutationBodySchema = z.object({
 });
 
 export const subscriptionQuoteBodySchema = z.object({
-  idToken: idTokenSchema,
+  accessToken: accessTokenSchema,
   workspaceId: z.string().min(1).max(128),
   targetPlanId: z.string().min(1).max(128),
 });
 
 export const subscriptionChangeBodySchema = z.object({
-  idToken: idTokenSchema,
+  accessToken: accessTokenSchema,
   workspaceId: z.string().min(1).max(128),
   targetPlanId: z.string().min(1).max(128),
   quoteId: z.string().max(128).optional(),
 });
 
 export const subscriptionCancelBodySchema = z.object({
-  idToken: idTokenSchema,
+  accessToken: accessTokenSchema,
   workspaceId: z.string().min(1).max(128),
 });
 
 export const subscriptionReactivateBodySchema = z.object({
-  idToken: idTokenSchema,
+  accessToken: accessTokenSchema,
   workspaceId: z.string().min(1).max(128),
 });
 
 export const aiStudioJobBodySchema = z.object({
-  idToken: idTokenSchema,
+  accessToken: accessTokenSchema,
   toolId: z.string().min(1).max(128),
   imagePart: z.record(z.string(), z.unknown()).optional(),
   style: z.string().max(128).optional(),
@@ -59,7 +64,7 @@ export const aiStudioJobBodySchema = z.object({
 });
 
 export const brandingUpdateBodySchema = z.object({
-  idToken: idTokenSchema,
+  accessToken: accessTokenSchema,
   workspaceId: z.string().min(1).max(128),
   branding: z.record(z.string(), z.string()).optional(),
 });
@@ -90,7 +95,7 @@ const logoFileSchema = z
   );
 
 export const brandingUploadLogoFormSchema = z.object({
-  idToken: z.preprocess((value) => (typeof value === "string" ? value.trim() : value), idTokenSchema),
+  accessToken: z.preprocess((value) => (typeof value === "string" ? value.trim() : value), accessTokenSchema),
   workspaceId: z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : value),
     z.string().min(1).max(128),

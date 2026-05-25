@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 
 export type ShortcutAction =
   | "navigate-ai-studio"
-  | "create-project"
   | "open-shortcuts-help"
   | "close-modal";
 
@@ -19,7 +18,6 @@ const SHORTCUTS: Array<{
   labelKey: string;
 }> = [
   { key: "a", ctrl: true, shift: true, action: "navigate-ai-studio", labelKey: "navigateAiStudio" },
-  { key: "n", ctrl: true, action: "create-project", labelKey: "createProject" },
   { key: "k", ctrl: true, action: "open-shortcuts-help", labelKey: "openHelp" },
   { key: "Escape", action: "close-modal", labelKey: "closeModal" },
 ];

@@ -10,8 +10,8 @@ const sessionUser = {
 
 const mocks = vi.hoisted(() => ({
   getOptionalSessionUser: vi.fn(),
-  requireVerifiedFirebaseIdentity: vi.fn(),
-  callFirebaseCallableFromServer: vi.fn(),
+  requireVerifiedSupabaseIdentity: vi.fn(),
+  callBackendCallableFromServer: vi.fn(),
   requireWorkspacePermission: vi.fn(),
   rateLimitAllowed: true,
 }));
@@ -20,9 +20,9 @@ vi.mock("@/lib/auth/session", () => ({
   getOptionalSessionUser: mocks.getOptionalSessionUser,
 }));
 
-vi.mock("@/lib/firebase/callable-server", () => ({
-  requireVerifiedFirebaseIdentity: mocks.requireVerifiedFirebaseIdentity,
-  callFirebaseCallableFromServer: mocks.callFirebaseCallableFromServer,
+vi.mock("@/lib/supabase/callable", () => ({
+  requireVerifiedSupabaseIdentity: mocks.requireVerifiedSupabaseIdentity,
+  callBackendCallableFromServer: mocks.callBackendCallableFromServer,
 }));
 
 vi.mock("@/lib/rbac/server", () => ({
@@ -45,7 +45,7 @@ vi.mock("@/lib/api/rate-limit", () => ({
 import { POST } from "./route";
 
 const validBody = {
-  idToken: "valid-id-token-123",
+  accessToken: "valid-access-token-123",
   workspaceId: "workspace-1",
   amount: 25,
   idempotencyKey: "idem-key-1",
@@ -65,7 +65,7 @@ describe("POST /api/credits/refund", () => {
     vi.clearAllMocks();
     mocks.rateLimitAllowed = true;
     mocks.getOptionalSessionUser.mockResolvedValue(sessionUser);
-    mocks.requireVerifiedFirebaseIdentity.mockImplementation(async (currentSessionUser) => {
+    mocks.requireVerifiedSupabaseIdentity.mockImplementation(async (currentSessionUser) => {
       if (!currentSessionUser) {
         throw Object.assign(new Error("Oturum bulunamadı. raw-session-detail"), { status: 401 });
       }
@@ -73,7 +73,7 @@ describe("POST /api/credits/refund", () => {
       return sessionUser;
     });
     mocks.requireWorkspacePermission.mockResolvedValue("owner");
-    mocks.callFirebaseCallableFromServer.mockResolvedValue({ ok: true });
+    mocks.callBackendCallableFromServer.mockResolvedValue({ ok: true });
   });
 
   it("refunds credits for an authorized billing request", async () => {
@@ -82,7 +82,7 @@ describe("POST /api/credits/refund", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.requireWorkspacePermission).toHaveBeenCalledWith("user-1", "workspace-1", "workspace.billing");
-    expect(mocks.callFirebaseCallableFromServer).toHaveBeenCalledWith("refundCredits", "valid-id-token-123", {
+    expect(mocks.callBackendCallableFromServer).toHaveBeenCalledWith("refundCredits", "valid-access-token-123", {
       amount: 25,
       description: "refund job",
     });
@@ -94,7 +94,7 @@ describe("POST /api/credits/refund", () => {
     expect(response.status).toBe(400);
     const body = await response.json();
     expect(body.error).toContain("Doğrulama hatası");
-    expect(mocks.callFirebaseCallableFromServer).not.toHaveBeenCalled();
+    expect(mocks.callBackendCallableFromServer).not.toHaveBeenCalled();
   });
 
   it("returns 401 with a safe message when session is missing", async () => {
@@ -106,7 +106,7 @@ describe("POST /api/credits/refund", () => {
     const body = await response.json();
     expect(body).toEqual({ error: "Oturum doğrulanamadı. Lütfen tekrar giriş yapın." });
     expect(body.error).not.toContain("raw-session-detail");
-    expect(mocks.callFirebaseCallableFromServer).not.toHaveBeenCalled();
+    expect(mocks.callBackendCallableFromServer).not.toHaveBeenCalled();
   });
 
   it("returns 429 when the rate limiter blocks the refund", async () => {
@@ -120,7 +120,7 @@ describe("POST /api/credits/refund", () => {
   });
 
   it("does not leak raw callable errors", async () => {
-    mocks.callFirebaseCallableFromServer.mockRejectedValueOnce(new Error("raw refund backend stack"));
+    mocks.callBackendCallableFromServer.mockRejectedValueOnce(new Error("raw refund backend stack"));
 
     const response = await POST(createJsonRequest(validBody));
 

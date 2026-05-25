@@ -1,23 +1,24 @@
 {
   "name": "functions",
-  "description": "Archilya Firebase Cloud Functions",
+  "description": "Archilya Supabase Express Backend",
   "scripts": {
-    "serve": "firebase emulators:start --only functions",
-    "shell": "firebase functions:shell",
-    "start": "npm run shell",
-    "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "serve": "node server.js",
+    "start": "node server.js",
+    "check": "node --check server.js && node --check src/app.js && node --check src/shared/supabase.js && node --check src/shared/supabase-helpers.js && node --check src/shared/http-callable.js && node --check src/shared/credit-ledger.js && node --check src/credits/index.js && node --check src/workspaces/index.js && node --check src/projects/express.js && node --check src/notifications/express.js && node --check src/contact/express.js && node --check src/ai-jobs/express.js && node --check src/ai-jobs/storage.js && node --check src/ai-jobs/gemini.js && node --check src/ai-jobs/processor.js && node --check src/ai-jobs/worker.js && node --check scripts/migrate-storage-to-supabase.js",
+    "migrate:storage": "node scripts/migrate-storage-to-supabase.js"
   },
   "engines": {
     "node": "20"
   },
-  "main": "index.js",
+  "main": "server.js",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1017.0",
     "@aws-sdk/s3-request-presigner": "^3.1017.0",
+    "@google-cloud/storage": "^7.19.0",
     "@sentry/node": "^10.52.0",
-    "firebase-admin": "^12.0.0",
-    "firebase-functions": "^5.0.0",
+    "@supabase/supabase-js": "^2.106.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "node-fetch": "^3.3.2",
     "replicate": "^1.0.1",
     "resend": "^6.9.4"

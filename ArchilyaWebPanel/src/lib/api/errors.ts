@@ -71,7 +71,6 @@ function hasAnyNeedle(value: string, needles: readonly string[]) {
 function isConfigurationFailure(message: string) {
   return hasAnyNeedle(message, [
     "panel_session_secret",
-    "next_public_firebase_project_id",
     "ortam degiskeni",
     "environment variable",
   ]);
@@ -84,11 +83,11 @@ function isAuthFailure(message: string, code: string) {
       "oturum bulunamadi",
       "oturum acmaniz gerekiyor",
       "giris yapmaniz gerekiyor",
-      "firebase kimlik bilgisi eksik",
-      "firebase id token gecersiz",
-      "session ve firebase kullanicilari eslesmiyor",
+      "supabase kimlik bilgisi eksik",
+      "supabase kimligi dogrulanamadi",
+      "session ve supabase kullanicilari eslesmiyor",
       "jwt",
-      "id token",
+      "access token",
       "unauthenticated",
       "unauthorized",
     ]);

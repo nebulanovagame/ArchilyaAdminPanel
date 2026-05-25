@@ -2,20 +2,17 @@
 
 import { useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { collection, query, where, type Query, type QuerySnapshot } from "firebase/firestore";
 
-import { usePaginatedFirestoreQuery } from "@/hooks/use-paginated-firestore-query";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { createActivityLogEntry } from "@/lib/activity/service";
 import type { ActivityAction, ActivityCategory } from "@/lib/activity/types";
-import { getFirebaseFirestore } from "@/lib/firebase/client";
-import { projectConverter } from "@/lib/projects/mapper";
-import { getOverviewStats } from "@/lib/projects/model";
+import { mapProjectDocument } from "@/lib/projects/mapper";
 import {
   batchSoftDeleteProjects,
   createProject,
   softDeleteProject,
 } from "@/lib/projects/service";
-import type { CreateProjectInput, ProjectRecord } from "@/lib/projects/types";
+import type { CreateProjectInput } from "@/lib/projects/types";
 
 export function useProjects(
   uid: string | null,
@@ -26,16 +23,19 @@ export function useProjects(
   workspaceId?: string | null,
 ) {
   const t = useTranslations();
-  const baseQuery = useMemo<Query<ProjectRecord> | null>(
-    () => (uid ? query(collection(getFirebaseFirestore(), "projects").withConverter(projectConverter), where("memberUids", "array-contains", uid)) : null),
-    [uid],
-  );
 
-  const mapSnapshot = useCallback((snapshot: QuerySnapshot<ProjectRecord>) => {
-    return snapshot.docs
-      .map((docSnap) => docSnap.data())
-      .filter((project) => !project.isDeleted);
+  const mapRows = useCallback((rows: Record<string, unknown>[]) => {
+    return rows.map((row) => mapProjectDocument(String(row.id), row));
   }, []);
+
+  // Note: projects table uses owner_id (not uid).
+  // Projects where the user is a team member (not owner) are queried
+  // via project_team_members join in the service layer instead.
+  const filters = useMemo(() => {
+    return uid
+      ? [{ column: "owner_id", value: uid }, { column: "is_deleted", value: false }]
+      : [];
+  }, [uid]);
 
   const {
     data: projects,
@@ -45,16 +45,15 @@ export function useProjects(
     hasMore,
     loadMore,
     refresh,
-  } = usePaginatedFirestoreQuery({
-    baseQuery,
-    orderByField: "createdAt",
+  } = usePaginatedQuery({
+    table: "projects",
+    filters,
+    orderByField: "created_at",
     orderDirection: "desc",
     pageSize: 10,
-    mapSnapshot,
+    mapRows,
     enabled: Boolean(uid),
   });
-
-  const stats = useMemo(() => getOverviewStats(projects), [projects]);
 
   async function logActivity(
     category: ActivityCategory,
@@ -66,7 +65,7 @@ export function useProjects(
   ) {
     if (!uid || !workspaceId || !ownerEmail) return;
     try {
-      await createActivityLogEntry(getFirebaseFirestore(), {
+      await createActivityLogEntry(null, {
         workspaceId,
         category,
         action,
@@ -86,7 +85,6 @@ export function useProjects(
 
   return {
     projects,
-    stats,
     loading,
     loadingMore,
     error,
@@ -107,7 +105,7 @@ export function useProjects(
     batchSoftDelete: async (projectIds: string[]) => {
       if (!canMutate) throw new Error(mutationErrorMessage);
       await batchSoftDeleteProjects(projectIds);
-      void logActivity("project", "softDeleteProject", "project", projectIds.join(","), t("dashboard.trash.projectsTab", { count: projectIds.length }), { count: projectIds.length });
+      void logActivity("project", "softDeleteProject", "project", projectIds.join(","), `${projectIds.length} proje`, { count: projectIds.length });
       await refresh();
     },
   };

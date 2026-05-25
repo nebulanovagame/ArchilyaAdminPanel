@@ -1,46 +1,13 @@
-import {
-  addDoc,
-  collection,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  serverTimestamp,
-  startAfter,
-  where,
-  type DocumentData,
-  type Firestore,
-  type QueryConstraint,
-  type QueryDocumentSnapshot,
-} from "firebase/firestore";
+import { createClient } from "@/lib/supabase/client";
 
 import { mapActivityLogDocument, safeParseActivityTimestamp } from "./mapper";
 import type { ActivityLogQueryOptions, ActivityLogRecord } from "./types";
 
-const ACTIVITY_COLLECTION = "workspaceActivityLogs";
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_RECENT_LIMIT = 5;
 
-function isQueryDocumentSnapshot(value: unknown): value is QueryDocumentSnapshot<DocumentData> {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as {
-    data?: unknown;
-    get?: unknown;
-    id?: unknown;
-    ref?: unknown;
-  };
-
-  return typeof candidate.data === "function"
-    && typeof candidate.get === "function"
-    && typeof candidate.id === "string"
-    && Boolean(candidate.ref);
-}
-
-function getActivityCollection(db: Firestore) {
-  return collection(db, ACTIVITY_COLLECTION);
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function toQueryTimestamp(value: ActivityLogQueryOptions["fromDate"] | ActivityLogQueryOptions["toDate"]) {
@@ -48,75 +15,108 @@ function toQueryTimestamp(value: ActivityLogQueryOptions["fromDate"] | ActivityL
 }
 
 export async function createActivityLogEntry(
-  db: Firestore,
+  _db: unknown,
   entry: Omit<ActivityLogRecord, "id">,
 ): Promise<string> {
-  const { timestamp: _timestamp, ...rest } = entry;
-  const docRef = await addDoc(getActivityCollection(db), {
-    ...rest,
-    timestamp: serverTimestamp(),
-  });
+  const createdAt = toQueryTimestamp(entry.timestamp) ?? new Date();
+  const targetId = String(entry.targetId || "");
 
-  return docRef.id;
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("workspace_activity_logs")
+    .insert({
+      workspace_id: entry.workspaceId,
+      action: entry.action,
+      actor_id: entry.actorUid,
+      actor_email: entry.actorEmail,
+      actor_name: entry.actorName,
+      target_type: entry.targetType,
+      target_id: isUuid(targetId) ? targetId : null,
+      target_name: entry.targetName,
+      category: entry.category,
+      metadata: entry.metadata,
+      created_at: createdAt.toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.warn("[activity] createActivityLogEntry error:", error.message);
+    throw new Error("Aktivite kaydedilemedi.");
+  }
+
+  return data.id;
 }
 
 export async function getActivityLogsForWorkspace(
-  db: Firestore,
+  _db: unknown,
   options: ActivityLogQueryOptions,
-): Promise<{ logs: ActivityLogRecord[]; hasMore: boolean; nextCursor?: unknown }> {
+): Promise<{ logs: ActivityLogRecord[]; hasMore: boolean; nextCursor?: number }> {
   const pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
-  const constraints: QueryConstraint[] = [where("workspaceId", "==", options.workspaceId)];
+  const offset = typeof options.cursor === "number" ? options.cursor : 0;
+
+  const supabase = createClient();
+
+  let query = supabase
+    .from("workspace_activity_logs")
+    .select("*")
+    .eq("workspace_id", options.workspaceId)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + pageSize - 1);
 
   if (options.category) {
-    constraints.push(where("category", "==", options.category));
+    query = query.eq("category", options.category);
   }
 
   if (options.action) {
-    constraints.push(where("action", "==", options.action));
+    query = query.eq("action", options.action);
   }
 
   if (options.actorUid) {
-    constraints.push(where("actorUid", "==", options.actorUid));
+    query = query.eq("actor_id", options.actorUid);
   }
 
   const fromTimestamp = toQueryTimestamp(options.fromDate);
   if (fromTimestamp) {
-    constraints.push(where("timestamp", ">=", fromTimestamp));
+    query = query.gte("created_at", fromTimestamp.toISOString());
   }
 
   const toTimestamp = toQueryTimestamp(options.toDate);
   if (toTimestamp) {
-    constraints.push(where("timestamp", "<=", toTimestamp));
+    query = query.lte("created_at", toTimestamp.toISOString());
   }
 
-  constraints.push(orderBy("timestamp", "desc"), limit(pageSize));
+  const { data, error } = await query;
 
-  if (isQueryDocumentSnapshot(options.cursor)) {
-    constraints.push(startAfter(options.cursor));
+  if (error) {
+    console.warn("[activity] getActivityLogsForWorkspace error:", error.message);
+    throw new Error("Aktivite logları alınamadı.");
   }
 
-  const snapshot = await getDocs(query(getActivityCollection(db), ...constraints));
-  const logs = snapshot.docs.map((docSnap) => mapActivityLogDocument(docSnap.id, docSnap.data()));
-  const nextCursor = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : undefined;
+  const logs = (data || []).map((row) => mapActivityLogDocument(row.id, row));
+  const hasMore = logs.length === pageSize;
+  const nextCursor = hasMore ? offset + pageSize : undefined;
 
-  return {
-    logs,
-    hasMore: snapshot.docs.length === pageSize,
-    nextCursor,
-  };
+  return { logs, hasMore, nextCursor };
 }
 
 export async function getRecentActivityLogs(
-  db: Firestore,
+  _db: unknown,
   workspaceId: string,
   maxCount = DEFAULT_RECENT_LIMIT,
 ): Promise<ActivityLogRecord[]> {
-  const snapshot = await getDocs(query(
-    getActivityCollection(db),
-    where("workspaceId", "==", workspaceId),
-    orderBy("timestamp", "desc"),
-    limit(maxCount),
-  ));
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("workspace_activity_logs")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(maxCount);
 
-  return snapshot.docs.map((docSnap) => mapActivityLogDocument(docSnap.id, docSnap.data()));
+  if (error) {
+    console.warn("[activity] getRecentActivityLogs error:", error.message);
+    throw new Error("Son aktiviteler alınamadı.");
+  }
+
+  return (data || []).map((row) => mapActivityLogDocument(row.id, row));
 }
