@@ -7,6 +7,7 @@ const { generateWithFallback, extractImage, extractText } = require('./gemini');
 const MAX_ATTEMPTS = Number(process.env.AI_STUDIO_MAX_ATTEMPTS || 3);
 const DEFAULT_BATCH_SIZE = Number(process.env.AI_STUDIO_PROCESS_BATCH_SIZE || 2);
 const DEFAULT_STALE_LOCK_MINUTES = Number(process.env.AI_STUDIO_STALE_LOCK_MINUTES || 15);
+const DEFAULT_RETRY_DELAY_MS = Number(process.env.AI_STUDIO_RETRY_DELAY_MS || 1000);
 
 function nowIso() {
   return new Date().toISOString();
@@ -18,6 +19,10 @@ function staleBeforeIso(minutes = DEFAULT_STALE_LOCK_MINUTES) {
 
 function logJob(message, context = {}) {
   console.info(`[ai-jobs] ${message}`, context);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 
 function warnJob(message, context = {}) {
@@ -118,7 +123,7 @@ async function chargeJob(job) {
 
 async function refundJob(job, billing, reason) {
   const amount = Number(billing?.amount || job.credit_cost || 0);
-  if (!amount || billing?.status === 'refunded' || billing?.status === 'not_charged') return billing;
+  if (!amount || billing?.status === 'refunded' || billing?.status === 'not_charged' || billing?.status === 'charged_upstream') return billing;
   const result = await refundUserCredits({
     userId: job.user_id,
     amount,
@@ -206,15 +211,24 @@ async function processAiStudioJob(jobId) {
     const attempt = Number(job.attempt_count || claim.attempt || 1);
     const shouldRetry = ['internal', 'unavailable', 'resource-exhausted'].includes(normalized.code) && attempt < MAX_ATTEMPTS;
     if (shouldRetry) {
-      await supabase.from('ai_studio_jobs').update({
+      const { data: retryRow, error: retryError } = await supabase.from('ai_studio_jobs').update({
         status: 'queued',
         last_attempt_error: normalized,
         error_message: normalized.message,
         locked_at: null,
         updated_at: nowIso(),
-      }).eq('id', job.id);
+      }).eq('id', job.id)
+        .eq('status', 'running')
+        .eq('attempt_count', attempt)
+        .select('id')
+        .single();
+      if (retryError || !retryRow) {
+        warnJob('retry scheduling skipped due to state conflict', { jobId: job.id, attempt, message: retryError?.message || null });
+        return { jobId: job.id, success: false, retry: false, conflict: true, error: normalized };
+      }
       logJob('retry scheduled', { jobId: job.id, attempt, maxAttempts: MAX_ATTEMPTS });
-      return { jobId, success: false, retry: true, error: normalized };
+      await sleep(DEFAULT_RETRY_DELAY_MS);
+      return processAiStudioJob(job.id);
     }
 
     let nextBilling = billing;

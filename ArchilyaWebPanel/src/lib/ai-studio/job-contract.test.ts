@@ -60,6 +60,26 @@ describe("mapAiStudioJobSnapshot", () => {
     expect(job.error?.message).toBe("snake error");
     expect(job.errorMessage).toBe("snake error");
   });
+
+  it("maps backend output image metadata when result_url is absent", () => {
+    const job = mapAiStudioJobSnapshot(snapshot({
+      status: "completed",
+      tool_id: "img2img",
+      output_type: "image",
+      metadata: {
+        result: {
+          outputImage: {
+            url: "https://supabase.archilya.com/storage/v1/object/sign/ai-studio/user/jobs/job-1/outputs/result.png?token=abc",
+            mimeType: "image/png",
+          },
+        },
+      },
+    }));
+
+    expect(job.result.imageUrl).toBe("https://supabase.archilya.com/storage/v1/object/sign/ai-studio/user/jobs/job-1/outputs/result.png?token=abc");
+    expect(job.result.mimeType).toBe("image/png");
+    expect(job.outputType).toBe("image");
+  });
 });
 
 describe("normalizeAiStudioJobStatus", () => {

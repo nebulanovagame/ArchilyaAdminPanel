@@ -173,6 +173,8 @@ export function mapAiStudioJobSnapshot(snapshot: { id: string; data: () => Recor
   const resultImage = isRecord(result.image) ? result.image : {};
   const error = isRecord(data.error) ? data.error : {};
   const metadata = isRecord(data.metadata) ? data.metadata : {};
+  const metadataResult = isRecord(metadata.result) ? metadata.result : {};
+  const metadataOutputImage = isRecord(metadataResult.outputImage) ? metadataResult.outputImage : {};
   const sceneReferences = Array.isArray(data.sceneReferences)
     ? data.sceneReferences
     : Array.isArray(request.sceneReferences)
@@ -185,6 +187,9 @@ export function mapAiStudioJobSnapshot(snapshot: { id: string; data: () => Recor
   const imageUrl = readString(resultImage.downloadUrl)
     || readString(resultImage.url)
     || readString(resultImage.dataUrl)
+    || readString(metadataOutputImage.downloadUrl)
+    || readString(metadataOutputImage.url)
+    || readString(metadataOutputImage.dataUrl)
     || readString(result.downloadUrl)
     || readString(result.url)
     || readString(result.dataUrl)
@@ -202,6 +207,7 @@ export function mapAiStudioJobSnapshot(snapshot: { id: string; data: () => Recor
     || readString(data.text)
     || readString(data.resultTextPreview);
   const mimeType = readString(resultImage.mimeType)
+    || readString(metadataOutputImage.mimeType)
     || readString(result.mimeType)
     || readString(data.mimeType)
     || readString(data.resultMimeType);

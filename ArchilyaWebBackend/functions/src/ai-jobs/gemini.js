@@ -14,6 +14,29 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function readInlineImagePart(part) {
+  const inlineData = part?.inlineData || part?.inline_data || null;
+  const mimeType = String(inlineData?.mimeType || inlineData?.mime_type || '').toLowerCase();
+  const data = String(inlineData?.data || '');
+  if (!mimeType.startsWith('image/') || !data) return null;
+  return {
+    mimeType,
+    data,
+  };
+}
+
+function findImagePart(data) {
+  const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
+  for (const candidate of candidates) {
+    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
+    for (const part of parts) {
+      const image = readInlineImagePart(part);
+      if (image) return image;
+    }
+  }
+  return null;
+}
+
 function modelChain(outputType) {
   const seen = new Set();
   return [GEMINI_MODELS[outputType], ...(GEMINI_FALLBACK_MODELS[outputType] || [])]
@@ -69,6 +92,11 @@ async function generateWithFallback({ outputType, payload }) {
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         const data = await callGeminiModel({ model, payload, attempt });
+        if (outputType === 'image' && !findImagePart(data)) {
+          const error = new HttpsError('internal', 'Gemini gorsel yaniti bos dondu.', { model, attempt });
+          error.retryable = true;
+          throw error;
+        }
         return { model, data };
       } catch (error) {
         lastError = error;
@@ -90,10 +118,9 @@ function extractText(data) {
 }
 
 function extractImage(data) {
-  const parts = data?.candidates?.[0]?.content?.parts || [];
-  const image = parts.find((part) => String(part?.inlineData?.mimeType || '').startsWith('image/') && part?.inlineData?.data);
-  if (!image?.inlineData) throw new HttpsError('internal', 'Gemini gorsel yaniti bos dondu.');
-  return image.inlineData;
+  const image = findImagePart(data);
+  if (!image) throw new HttpsError('internal', 'Gemini gorsel yaniti bos dondu.');
+  return image;
 }
 
 module.exports = { generateWithFallback, extractText, extractImage };
