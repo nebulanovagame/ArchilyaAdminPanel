@@ -1,10 +1,13 @@
 {
   "name": "functions",
   "description": "Archilya Supabase Express Backend",
-  "scripts": {
+"scripts": {
     "serve": "node server.js",
     "start": "node server.js",
-    "check": "node --check server.js && node --check src/app.js && node --check src/shared/supabase.js && node --check src/shared/supabase-helpers.js && node --check src/shared/http-callable.js && node --check src/shared/credit-ledger.js && node --check src/credits/index.js && node --check src/workspaces/index.js && node --check src/projects/express.js && node --check src/notifications/express.js && node --check src/contact/express.js && node --check src/ai-jobs/express.js && node --check src/ai-jobs/storage.js && node --check src/ai-jobs/gemini.js && node --check src/ai-jobs/processor.js && node --check src/ai-jobs/worker.js && node --check scripts/migrate-storage-to-supabase.js",
+    "check": "node --check server.js && node --check src/app.js && node --check src/config/env.js && node --check src/shared/supabase.js && node --check src/shared/supabase-helpers.js && node --check src/shared/http-callable.js && node --check src/shared/credit-ledger.js && node --check src/shared/rate-limiter.js && node --check src/shared/health-check.js && node --check src/shared/job-events.js && node --check src/credits/index.js && node --check src/workspaces/index.js && node --check src/projects/express.js && node --check src/notifications/express.js && node --check src/contact/express.js && node --check src/ai-jobs/express.js && node --check src/ai-jobs/storage.js && node --check src/ai-jobs/gemini.js && node --check src/ai-jobs/processor.js && node --check src/ai-jobs/worker.js && node --check scripts/migrate-storage-to-supabase.js",
+    "faz0:smoke": "node scripts/faz0-smoke-test.js",
+    "faz0:load-test": "node scripts/faz0-load-test.js",
+    "faz0:failure-test": "node scripts/faz0-failure-injection-test.js",
     "migrate:storage": "node scripts/migrate-storage-to-supabase.js"
   },
   "engines": {

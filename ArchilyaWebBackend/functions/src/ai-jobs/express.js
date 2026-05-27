@@ -9,15 +9,8 @@ const {
 } = require('../shared/supabase-helpers');
 const { storeInputImage } = require('./storage');
 const { processAiStudioJob } = require('./processor');
-
-const AI_STUDIO_CREDIT_COSTS = {
-  analysis: 2,
-  img2img: 10,
-  enhance: 8,
-  sceneedit: 12,
-  plancolor: 6,
-  revise: 10,
-};
+const { TOOL_COSTS, getToolCost } = require('../config/tool-pricing');
+const { checkRateLimit } = require('../shared/rate-limiter');
 
 function nowIso() {
   return new Date().toISOString();
@@ -57,6 +50,9 @@ function normalizeImagePart(imagePart) {
 function normalizeJobPayload(data) {
   const toolId = normalizeText(data?.toolId, 80).toLowerCase();
   if (!toolId) throw new HttpsError('invalid-argument', 'toolId zorunludur.');
+  if (!TOOL_COSTS[toolId]) {
+    throw new HttpsError('invalid-argument', `Bilinmeyen AI araci: ${toolId}`);
+  }
 
   const image = normalizeImagePart(data?.imagePart);
   const references = normalizeReferenceImages(data?.referenceImages);
@@ -73,7 +69,7 @@ function normalizeJobPayload(data) {
     imagePart: data?.imagePart || null,
     rawReferenceImages: Array.isArray(data?.referenceImages) ? data.referenceImages.slice(0, 4) : [],
     referenceImages: references,
-    creditCost: Number(AI_STUDIO_CREDIT_COSTS[toolId] || 0),
+    creditCost: getToolCost(toolId),
   };
 }
 
@@ -85,6 +81,20 @@ async function readUser(uid) {
 
 exports.createAiStudioJobSecure = onCall({ region: 'europe-west1' }, async (request) => {
   const uid = requireAuth(request);
+  const payloadSize = JSON.stringify(request.data || {}).length;
+  if (payloadSize > 25 * 1024 * 1024) {
+    throw new HttpsError('invalid-argument', 'Istek boyutu cok buyuk.');
+  }
+  const ip = String(request.rawRequest?.headers?.['x-forwarded-for'] || request.rawRequest?.ip || 'unknown').split(',')[0].trim();
+  const rateLimit = await checkRateLimit({
+    prefix: 'ai-studio:create',
+    identifier: `${uid}:${ip}`,
+    windowMs: 60 * 1000,
+    maxRequests: 10, // 10 job creation per minute per user
+  });
+  if (!rateLimit.allowed) {
+    throw new HttpsError('resource-exhausted', 'Cok fazla AI islem baslattiniz. Lutfen bir dakika bekleyin.');
+  }
   const email = normalizeEmail(request.auth?.token?.email || '');
   const displayName = normalizeText(request.auth?.token?.name || email, 120) || email || uid;
   const payload = normalizeJobPayload(request.data || {});
@@ -151,7 +161,16 @@ exports.createAiStudioJobSecure = onCall({ region: 'europe-west1' }, async (requ
 
   if (error) throw new HttpsError('internal', error.message);
 
-  console.info('[ai-jobs] job created', { jobId, toolId: payload.toolId, outputType: payload.outputType, status: 'queued' });
+  console.info(JSON.stringify({
+    ts: new Date().toISOString(),
+    level: 'info',
+    service: 'ai-jobs',
+    msg: 'job created',
+    jobId,
+    toolId: payload.toolId,
+    userId: uid,
+    creditCost: payload.creditCost,
+  }));
 
   // Fire background processing without awaiting — UI tracks status via Realtime
   console.info('[ai-jobs] background trigger scheduled', { jobId });

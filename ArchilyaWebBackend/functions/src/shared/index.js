@@ -28,6 +28,7 @@ const Replicate              = require('replicate');
 const { Resend }             = require('resend');
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadBucketCommand, ListBucketsCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { TOOL_COSTS, REVISION_CREDIT_COST: CANONICAL_REVISION_COST, getToolCost } = require('../config/tool-pricing');
 
 admin.initializeApp();
 
@@ -53,7 +54,7 @@ const SCENE_EDIT_REFERENCE_TYPES = ['object', 'material', 'style'];
 const SCENE_EDIT_MAX_REFERENCES = 4;
 const SCENE_EDIT_TOTAL_BASE64_LIMIT = 7_200_000;
 const REVISION_TOTAL_BASE64_LIMIT = 11_000_000;
-const REVISION_CREDIT_COST = 10;
+const REVISION_CREDIT_COST = CANONICAL_REVISION_COST;
 const ARCHILYA_PREMIUM_VISUAL_CORE = [
   'Editorial architectural photography quality.',
   'Competition-grade architectural visualization.',
@@ -652,22 +653,26 @@ function buildRevisionParts({ baseImagePart, maskImagePart, prompt }) {
 }
 
 function mapAiToolConfig(toolId, outputType) {
-  const toolConfig = {
-    analysis: { credits: 5, outputType: 'text' },
-    img2img: { credits: 15, outputType: 'image' },
-    enhance: { credits: 15, outputType: 'image' },
-    plancolor: { credits: 15, outputType: 'image' },
-    sceneedit: { credits: 25, outputType: 'image' },
+  const normalizedToolId = String(toolId || '').trim().toLowerCase();
+  const cost = getToolCost(normalizedToolId);
+
+  const outputTypeMap = {
+    analysis: 'text',
+    img2img: 'image',
+    enhance: 'image',
+    plancolor: 'image',
+    sceneedit: 'image',
   };
 
-  const config = toolConfig[String(toolId || '').trim()];
-  if (!config) {
+  const expectedOutputType = outputTypeMap[normalizedToolId];
+  if (!expectedOutputType) {
     throw new HttpsError('invalid-argument', 'Gecersiz AI arac secimi.');
   }
-  if (config.outputType !== outputType) {
+  if (expectedOutputType !== outputType) {
     throw new HttpsError('invalid-argument', 'Arac ile cikti tipi uyumsuz.');
   }
-  return config;
+
+  return { credits: cost, outputType: expectedOutputType };
 }
 
 function normalizeAiPromptToolId(value) {

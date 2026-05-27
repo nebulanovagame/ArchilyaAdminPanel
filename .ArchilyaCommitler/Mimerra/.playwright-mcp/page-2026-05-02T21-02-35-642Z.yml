@@ -1,0 +1,37 @@
+- generic [ref=e2]:
+  - generic [ref=e553]:
+    - button "TR expand_more" [ref=e556] [cursor=pointer]:
+      - generic [ref=e557]: TR
+      - generic [ref=e558]: expand_more
+    - generic [ref=e562]:
+      - generic [ref=e563]:
+        - generic [ref=e564]:
+          - heading "Kayıt Ol" [level=2] [ref=e565]
+          - paragraph [ref=e566]: Yeni bir hesap oluşturun.
+        - button "arrow_back" [ref=e567] [cursor=pointer]:
+          - generic [ref=e568]: arrow_back
+      - generic [ref=e569]:
+        - generic [ref=e570]:
+          - generic [ref=e571]: Ad Soyad
+          - textbox "Ad Soyad" [ref=e572]:
+            - /placeholder: Ad ve soyadınızı girin
+        - generic [ref=e573]:
+          - generic [ref=e574]: E-posta
+          - textbox "E-posta" [ref=e575]:
+            - /placeholder: E-posta adresinizi girin
+        - generic [ref=e576]:
+          - generic [ref=e577]: Şifre
+          - textbox "Şifre" [ref=e578]:
+            - /placeholder: Şifrenizi girin
+        - generic [ref=e579]:
+          - generic [ref=e580]: Şifre Tekrar
+          - textbox "Şifre Tekrar" [ref=e581]:
+            - /placeholder: Şifrenizi tekrar girin
+        - generic [ref=e582]:
+          - generic [ref=e583]: Kupon Kodu (Opsiyonel)
+          - textbox "Kupon Kodu (Opsiyonel)" [ref=e584]
+          - paragraph [ref=e585]: Geçerli kupon girerseniz hesabınız kredi yüklü oluşturulur.
+        - button "Kayıt Ol" [ref=e586] [cursor=pointer]
+  - button "İletişim Bilgileri" [ref=e548] [cursor=pointer]:
+    - img [ref=e549]
+    - generic [ref=e551]: İletişim

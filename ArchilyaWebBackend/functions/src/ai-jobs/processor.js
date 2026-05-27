@@ -1,13 +1,22 @@
+const Sentry = require('@sentry/node');
 const { HttpsError } = require('../shared/http-callable');
 const { supabase, normalizeText } = require('../shared/supabase-helpers');
 const { chargeUserCredits, refundUserCredits } = require('../shared/credit-ledger');
+const { EVENT_TYPES, recordJobEvent } = require('../shared/job-events');
 const { downloadStoredImage, storeOutputImage } = require('./storage');
 const { generateWithFallback, extractImage, extractText } = require('./gemini');
 
+// Retry Architecture (FAZ 0):
+// - Provider retry (gemini.js): MAX 2 attempts per model, only for transient network errors
+// - Processor retry: MAX 3 attempts total per job, controlled by MAX_ATTEMPTS
+// - Cloud Tasks retry: NOT USED in this code path (this is the new Supabase path)
+// WORST CASE: 3 processor attempts × 2 gemini attempts = 6 total API calls max
 const MAX_ATTEMPTS = Number(process.env.AI_STUDIO_MAX_ATTEMPTS || 3);
+const MAX_PROVIDER_RETRIES = Number(process.env.AI_STUDIO_MAX_PROVIDER_RETRIES || 2);
 const DEFAULT_BATCH_SIZE = Number(process.env.AI_STUDIO_PROCESS_BATCH_SIZE || 2);
 const DEFAULT_STALE_LOCK_MINUTES = Number(process.env.AI_STUDIO_STALE_LOCK_MINUTES || 15);
-const DEFAULT_RETRY_DELAY_MS = Number(process.env.AI_STUDIO_RETRY_DELAY_MS || 1000);
+const DEFAULT_RETRY_DELAY_MS = Number(process.env.AI_STUDIO_RETRY_DELAY_MS || 2000);
+const DEAD_LETTER_AFTER_MINUTES = Number(process.env.AI_STUDIO_DEAD_LETTER_AFTER_MINUTES || 60);
 
 function nowIso() {
   return new Date().toISOString();
@@ -17,16 +26,56 @@ function staleBeforeIso(minutes = DEFAULT_STALE_LOCK_MINUTES) {
   return new Date(Date.now() - Math.max(1, Number(minutes) || DEFAULT_STALE_LOCK_MINUTES) * 60 * 1000).toISOString();
 }
 
-function logJob(message, context = {}) {
-  console.info(`[ai-jobs] ${message}`, context);
-}
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 
-function warnJob(message, context = {}) {
-  console.warn(`[ai-jobs] ${message}`, context);
+function setJobSentryTags(context = {}) {
+  try {
+    Sentry.setTags({
+      jobId: context.jobId || null,
+      userId: context.userId || null,
+      toolId: context.toolId || null,
+      provider: context.provider || 'gemini',
+      attempt: context.attempt || null,
+      maxAttempts: MAX_ATTEMPTS,
+      function: 'processAiStudioJob',
+      aiJobSystem: 'supabase-express-worker',
+    });
+    if (context.jobId) {
+      Sentry.setContext('ai-job', {
+        jobId: context.jobId,
+        userId: context.userId || null,
+        toolId: context.toolId || null,
+        attempt: context.attempt || null,
+        provider: context.provider || 'gemini',
+      });
+    }
+  } catch (_err) {
+    // Sentry not initialized — non-blocking
+  }
+}
+
+function logStructured(level, message, context = {}) {
+  const safeContext = { ...context };
+  // Sentry tag'leri de log context'e ekle
+  if (safeContext.jobId) setJobSentryTags(safeContext);
+  const entry = {
+    ts: nowIso(),
+    level,
+    service: 'ai-jobs',
+    msg: message,
+    ...safeContext,
+  };
+  if (level === 'error') {
+    console.error(JSON.stringify(entry));
+    try { Sentry.captureMessage(message, { level: 'error', extra: safeContext }); } catch (_) {}
+  } else if (level === 'warn') {
+    console.warn(JSON.stringify(entry));
+    try { Sentry.captureMessage(message, { level: 'warning', extra: safeContext }); } catch (_) {}
+  } else {
+    console.info(JSON.stringify(entry));
+  }
 }
 
 function normalizeJobError(error) {
@@ -50,7 +99,7 @@ function buildPrompt(job) {
 }
 
 async function claimJob(jobId) {
-  logJob('claim started', { jobId });
+  logStructured('info', 'claim started', { jobId });
   const { data: job, error: readError } = await supabase
     .from('ai_studio_jobs')
     .select('*')
@@ -58,15 +107,64 @@ async function claimJob(jobId) {
     .single();
 
   if (readError || !job) throw new HttpsError('not-found', readError?.message || 'AI job bulunamadi.');
-  if (['completed', 'failed', 'cancelled', 'canceled'].includes(String(job.status))) return { skip: true, job };
+  if (['completed', 'failed', 'cancelled', 'canceled'].includes(String(job.status))) {
+    await recordJobEvent({
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      eventType: EVENT_TYPES.FAILED,
+      previousStatus: job.status,
+      newStatus: job.status,
+      reason: 'already-terminal',
+      attempt: Number(job.attempt_count || 0),
+    });
+    logStructured('warn', 'claim skipped terminal job', {
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      attempt: Number(job.attempt_count || 0),
+      status: job.status,
+      reason: 'already-terminal',
+    });
+    return { skip: true, job };
+  }
   if (Number(job.attempt_count || 0) >= MAX_ATTEMPTS) {
+    const finalError = { code: 'resource-exhausted', message: 'AI isi maksimum deneme sayisini asti.' };
     await supabase.from('ai_studio_jobs').update({
       status: 'failed',
-      error_message: 'AI isi maksimum deneme sayisini asti.',
-      last_attempt_error: { code: 'resource-exhausted', message: 'AI isi maksimum deneme sayisini asti.' },
+      error_message: finalError.message,
+      last_attempt_error: finalError,
+      dead_letter: {
+        final_error: finalError,
+        attempts: job.attempt_count || 0,
+        provider: 'gemini',
+        last_failed_at: nowIso(),
+        can_manual_retry: false,
+        reason: 'max-attempts-before-claim',
+        dead_letter_after_minutes: DEAD_LETTER_AFTER_MINUTES,
+      },
       failed_at: nowIso(),
       updated_at: nowIso(),
     }).eq('id', jobId).in('status', ['pending', 'queued', 'running']);
+    await recordJobEvent({
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      eventType: EVENT_TYPES.DEAD_LETTERED,
+      previousStatus: job.status,
+      newStatus: 'failed',
+      reason: 'max-attempts-before-claim',
+      metadata: { finalError, maxAttempts: MAX_ATTEMPTS },
+      attempt: Number(job.attempt_count || 0),
+      provider: 'gemini',
+    });
+    logStructured('warn', 'claim dead-lettered max-attempt job', {
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      attempt: Number(job.attempt_count || 0),
+      maxAttempts: MAX_ATTEMPTS,
+    });
     return { skip: true, job: { ...job, status: 'failed' } };
   }
 
@@ -85,8 +183,34 @@ async function claimJob(jobId) {
     .select('*')
     .single();
 
-  if (updateError || !claimed) return { skip: true, job };
-  logJob('claimed job', { jobId, status: claimed.status, attempt: nextAttempt });
+  if (updateError || !claimed) {
+    logStructured('warn', 'claim skipped due to state conflict', {
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      attempt: nextAttempt,
+      status: job.status,
+      message: updateError?.message || null,
+    });
+    return { skip: true, job };
+  }
+  await recordJobEvent({
+    jobId: claimed.id,
+    userId: claimed.user_id,
+    toolId: claimed.tool_id,
+    eventType: EVENT_TYPES.CLAIMED,
+    previousStatus: job.status,
+    newStatus: claimed.status,
+    reason: 'worker-claimed',
+    attempt: nextAttempt,
+  });
+  logStructured('info', 'claimed job', {
+    jobId: claimed.id,
+    userId: claimed.user_id,
+    toolId: claimed.tool_id,
+    status: claimed.status,
+    attempt: nextAttempt,
+  });
   return { skip: false, job: claimed, attempt: nextAttempt };
 }
 
@@ -95,9 +219,49 @@ async function chargeJob(job) {
   const billing = job.billing && typeof job.billing === 'object' ? job.billing : metadata.billing || {};
   const amount = Number(job.credit_cost || billing.amount || 0);
   if (!amount) return { charged: false, billing: { ...billing, status: 'not_charged', amount: 0 } };
-  if (billing.status === 'charged' || billing.status === 'charged_upstream') return { charged: true, billing };
+  await recordJobEvent({
+    jobId: job.id,
+    userId: job.user_id,
+    toolId: job.tool_id,
+    eventType: EVENT_TYPES.CHARGE_STARTED,
+    previousStatus: job.status,
+    newStatus: job.status,
+    reason: 'credit-charge-started',
+    metadata: { amount },
+    attempt: Number(job.attempt_count || 0),
+  });
+  logStructured('info', 'charge started', {
+    jobId: job.id,
+    userId: job.user_id,
+    toolId: job.tool_id,
+    attempt: Number(job.attempt_count || 0),
+    amount,
+  });
 
-  logJob('charging credits', { jobId: job.id, toolId: job.tool_id, amount });
+  // Duplicate charge protection: billing status short-circuits already-charged jobs,
+  // and the ledger RPC receives the stable ai-studio:${job.id}:charge idempotency key below.
+  if (billing.status === 'charged' || billing.status === 'charged_upstream') {
+    await recordJobEvent({
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      eventType: EVENT_TYPES.CHARGED,
+      previousStatus: job.status,
+      newStatus: job.status,
+      reason: 'credit-charge-already-completed',
+      metadata: { amount, billingStatus: billing.status },
+      attempt: Number(job.attempt_count || 0),
+    });
+    return { charged: true, billing };
+  }
+
+  logStructured('info', 'charging credits', {
+    jobId: job.id,
+    userId: job.user_id,
+    toolId: job.tool_id,
+    attempt: Number(job.attempt_count || 0),
+    amount,
+  });
 
   const result = await chargeUserCredits({
     userId: job.user_id,
@@ -118,6 +282,25 @@ async function chargeJob(job) {
   };
 
   await supabase.from('ai_studio_jobs').update({ billing: nextBilling, updated_at: nowIso() }).eq('id', job.id);
+  await recordJobEvent({
+    jobId: job.id,
+    userId: job.user_id,
+    toolId: job.tool_id,
+    eventType: EVENT_TYPES.CHARGED,
+    previousStatus: job.status,
+    newStatus: job.status,
+    reason: 'credit-charge-completed',
+    metadata: { amount, transactionId: result.transaction_id, balanceAfter: result.balance_after },
+    attempt: Number(job.attempt_count || 0),
+  });
+  logStructured('info', 'charge completed', {
+    jobId: job.id,
+    userId: job.user_id,
+    toolId: job.tool_id,
+    attempt: Number(job.attempt_count || 0),
+    amount,
+    transactionId: result.transaction_id,
+  });
   return { charged: true, billing: nextBilling };
 }
 
@@ -162,8 +345,16 @@ async function executeJob(job) {
   };
   if (outputType === 'image') payload.generationConfig = { responseModalities: ['IMAGE', 'TEXT'] };
 
-  const response = await generateWithFallback({ outputType, payload });
-  logJob('Gemini call completed', { jobId: job.id, toolId: job.tool_id, outputType });
+  const response = await generateWithFallback({ outputType, payload, maxProviderRetries: MAX_PROVIDER_RETRIES });
+  logStructured('info', 'Gemini call completed', {
+    jobId: job.id,
+    userId: job.user_id,
+    toolId: job.tool_id,
+    attempt: Number(job.attempt_count || 0),
+    outputType,
+    model: response.model,
+    maxProviderRetries: MAX_PROVIDER_RETRIES,
+  });
   if (outputType === 'text') {
     return { outputType, model: response.model, resultText: extractText(response.data), resultUrl: null };
   }
@@ -178,17 +369,44 @@ async function executeJob(job) {
 }
 
 async function processAiStudioJob(jobId) {
-  logJob('processing started', { jobId });
+  await recordJobEvent({
+    jobId,
+    eventType: EVENT_TYPES.STARTED,
+    reason: 'processor-started',
+  });
+  logStructured('info', 'processing started', { jobId, maxAttempts: MAX_ATTEMPTS, maxProviderRetries: MAX_PROVIDER_RETRIES });
   const claim = await claimJob(jobId);
   if (claim.skip) return { jobId, skipped: true, status: claim.job?.status || null };
 
   let job = claim.job;
   let billing = job.billing && typeof job.billing === 'object' ? job.billing : {};
+  let providerStarted = false;
 
   try {
     const charge = await chargeJob(job);
     billing = charge.billing;
-    logJob('Gemini call started', { jobId: job.id, toolId: job.tool_id, outputType: job.output_type });
+    await recordJobEvent({
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      eventType: EVENT_TYPES.PROVIDER_CALL_STARTED,
+      previousStatus: 'running',
+      newStatus: 'running',
+      reason: 'gemini-call-started',
+      attempt: Number(job.attempt_count || claim.attempt || 1),
+      provider: 'gemini',
+      metadata: { outputType: job.output_type, maxProviderRetries: MAX_PROVIDER_RETRIES },
+    });
+    logStructured('info', 'Gemini call started', {
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      attempt: Number(job.attempt_count || claim.attempt || 1),
+      outputType: job.output_type,
+      provider: 'gemini',
+      maxProviderRetries: MAX_PROVIDER_RETRIES,
+    });
+    providerStarted = true;
     const result = await executeJob({ ...job, billing });
     const nextMetadata = { ...(job.metadata || {}), result: { model: result.model, outputImage: result.outputImage || null } };
     await supabase.from('ai_studio_jobs').update({
@@ -203,12 +421,53 @@ async function processAiStudioJob(jobId) {
       updated_at: nowIso(),
       locked_at: null,
     }).eq('id', job.id);
-    logJob('job completed', { jobId: job.id, toolId: job.tool_id, outputType: result.outputType });
+    await recordJobEvent({
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      eventType: EVENT_TYPES.COMPLETED,
+      previousStatus: 'running',
+      newStatus: 'completed',
+      reason: 'job-completed',
+      metadata: { outputType: result.outputType, model: result.model },
+      attempt: Number(job.attempt_count || claim.attempt || 1),
+      provider: 'gemini',
+    });
+    logStructured('info', 'job completed', {
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      attempt: Number(job.attempt_count || claim.attempt || 1),
+      outputType: result.outputType,
+      model: result.model,
+    });
     return { jobId, success: true, model: result.model };
   } catch (error) {
     const normalized = normalizeJobError(error);
-    warnJob('job failed during processing', { jobId: job.id, code: normalized.code, attempt: job.attempt_count || claim.attempt || 1 });
     const attempt = Number(job.attempt_count || claim.attempt || 1);
+    if (providerStarted) {
+      await recordJobEvent({
+        jobId: job.id,
+        userId: job.user_id,
+        toolId: job.tool_id,
+        eventType: EVENT_TYPES.PROVIDER_CALL_FAILED,
+        previousStatus: 'running',
+        newStatus: 'running',
+        reason: normalized.message,
+        metadata: { error: normalized },
+        attempt,
+        provider: 'gemini',
+      });
+    }
+    logStructured('warn', 'job failed during processing', {
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      attempt,
+      code: normalized.code,
+      message: normalized.message,
+      provider: 'gemini',
+    });
     const shouldRetry = ['internal', 'unavailable', 'resource-exhausted'].includes(normalized.code) && attempt < MAX_ATTEMPTS;
     if (shouldRetry) {
       const { data: retryRow, error: retryError } = await supabase.from('ai_studio_jobs').update({
@@ -223,12 +482,37 @@ async function processAiStudioJob(jobId) {
         .select('id')
         .single();
       if (retryError || !retryRow) {
-        warnJob('retry scheduling skipped due to state conflict', { jobId: job.id, attempt, message: retryError?.message || null });
+        logStructured('warn', 'retry scheduling skipped due to state conflict', {
+          jobId: job.id,
+          userId: job.user_id,
+          toolId: job.tool_id,
+          attempt,
+          message: retryError?.message || null,
+        });
         return { jobId: job.id, success: false, retry: false, conflict: true, error: normalized };
       }
-      logJob('retry scheduled', { jobId: job.id, attempt, maxAttempts: MAX_ATTEMPTS });
+      await recordJobEvent({
+        jobId: job.id,
+        userId: job.user_id,
+        toolId: job.tool_id,
+        eventType: EVENT_TYPES.RETRY_SCHEDULED,
+        previousStatus: 'running',
+        newStatus: 'queued',
+        reason: `Attempt ${attempt} failed with ${normalized.code}, retrying`,
+        metadata: { error: normalized, maxAttempts: MAX_ATTEMPTS },
+        attempt,
+        provider: 'gemini',
+      });
+      logStructured('info', 'retry scheduled', {
+        jobId: job.id,
+        userId: job.user_id,
+        toolId: job.tool_id,
+        attempt,
+        code: normalized.code,
+        maxAttempts: MAX_ATTEMPTS,
+      });
       await sleep(DEFAULT_RETRY_DELAY_MS);
-      return processAiStudioJob(job.id);
+      return { jobId: job.id, success: false, retry: true, attempt };
     }
 
     let nextBilling = billing;
@@ -243,11 +527,51 @@ async function processAiStudioJob(jobId) {
       billing: nextBilling,
       error_message: normalized.message,
       last_attempt_error: normalized,
+      dead_letter: {
+        final_error: normalized,
+        attempts: attempt,
+        provider: 'gemini',
+        last_failed_at: nowIso(),
+        can_manual_retry: false,
+        reason: attempt >= MAX_ATTEMPTS ? 'max-attempts-exhausted' : 'non-retryable-error',
+        dead_letter_after_minutes: DEAD_LETTER_AFTER_MINUTES,
+      },
       failed_at: nowIso(),
       locked_at: null,
       updated_at: nowIso(),
     }).eq('id', job.id);
-    warnJob('job failed permanently', { jobId: job.id, code: normalized.code, attempt });
+    await recordJobEvent({
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      eventType: EVENT_TYPES.DEAD_LETTERED,
+      previousStatus: 'running',
+      newStatus: 'failed',
+      reason: attempt >= MAX_ATTEMPTS ? 'max-attempts-exhausted' : 'non-retryable-error',
+      metadata: { finalError: normalized, maxAttempts: MAX_ATTEMPTS },
+      attempt,
+      provider: 'gemini',
+    });
+    await recordJobEvent({
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      eventType: EVENT_TYPES.FAILED,
+      previousStatus: 'running',
+      newStatus: 'failed',
+      reason: normalized.message,
+      metadata: { error: normalized },
+      attempt,
+      provider: 'gemini',
+    });
+    logStructured('warn', 'job failed permanently', {
+      jobId: job.id,
+      userId: job.user_id,
+      toolId: job.tool_id,
+      attempt,
+      code: normalized.code,
+      message: normalized.message,
+    });
     return { jobId, success: false, retry: false, error: normalized };
   }
 }
@@ -291,6 +615,14 @@ async function recoverStaleAiStudioJobs({ staleMinutes = DEFAULT_STALE_LOCK_MINU
           locked_at: null,
           last_attempt_error: finalError,
           error_message: finalError.message,
+          dead_letter: {
+            final_error: finalError,
+            attempts: job.attempt_count || 0,
+            provider: 'gemini',
+            last_failed_at: nowIso(),
+            can_manual_retry: false,
+            reason: 'stale-lock-max-attempts',
+          },
           failed_at: nowIso(),
           updated_at: nowIso(),
         })
@@ -299,7 +631,21 @@ async function recoverStaleAiStudioJobs({ staleMinutes = DEFAULT_STALE_LOCK_MINU
         .or(`locked_at.is.null,locked_at.lt.${threshold}`)
         .select('id')
         .single();
-      if (!updateError && updated) failed.push(updated.id);
+      if (!updateError && updated) {
+        await recordJobEvent({
+          jobId: job.id,
+          userId: job.user_id,
+          toolId: job.tool_id,
+          eventType: EVENT_TYPES.DEAD_LETTERED,
+          previousStatus: 'running',
+          newStatus: 'failed',
+          reason: 'stale-lock-max-attempts',
+          metadata: { finalError, staleMinutes, maxAttempts: MAX_ATTEMPTS },
+          attempt: Number(job.attempt_count || 0),
+          provider: 'gemini',
+        });
+        failed.push(updated.id);
+      }
       continue;
     }
 
@@ -317,16 +663,34 @@ async function recoverStaleAiStudioJobs({ staleMinutes = DEFAULT_STALE_LOCK_MINU
       .or(`locked_at.is.null,locked_at.lt.${threshold}`)
       .select('id')
       .single();
-    if (!updateError && updated) recovered.push(updated.id);
+    if (!updateError && updated) {
+      await recordJobEvent({
+        jobId: job.id,
+        userId: job.user_id,
+        toolId: job.tool_id,
+        eventType: EVENT_TYPES.STALE_RECOVERED,
+        previousStatus: 'running',
+        newStatus: 'queued',
+        reason: 'stale-lock-recovered',
+        metadata: { staleError, staleMinutes },
+        attempt: Number(job.attempt_count || 0),
+        provider: 'gemini',
+      });
+      recovered.push(updated.id);
+    }
   }
-  if (recovered.length) logJob('recovered stale jobs', { count: recovered.length, staleMinutes });
-  if (failed.length) warnJob('failed stale max-attempt jobs', { count: failed.length, staleMinutes });
+  if (recovered.length) logStructured('info', 'recovered stale jobs', { count: recovered.length, staleMinutes });
+  if (failed.length) logStructured('warn', 'failed stale max-attempt jobs', { count: failed.length, staleMinutes });
   return { recovered: recovered.length, failed: failed.length, jobIds: recovered, failedJobIds: failed };
 }
 
 async function processQueuedAiStudioJobs({ limit = DEFAULT_BATCH_SIZE } = {}) {
   const batchLimit = Math.max(1, Math.min(Number(limit) || DEFAULT_BATCH_SIZE, 10));
-  logJob('worker scan started', { limit: batchLimit });
+  logStructured('info', 'worker scan started', {
+    limit: batchLimit,
+    maxAttempts: MAX_ATTEMPTS,
+    maxProviderRetries: MAX_PROVIDER_RETRIES,
+  });
   await recoverStaleAiStudioJobs({ limit: batchLimit });
   const { data: jobs, error } = await supabase
     .from('ai_studio_jobs')
@@ -336,7 +700,7 @@ async function processQueuedAiStudioJobs({ limit = DEFAULT_BATCH_SIZE } = {}) {
     .limit(batchLimit);
   if (error) throw new HttpsError('internal', error.message);
 
-  logJob('worker found jobs', { count: (jobs || []).length });
+  logStructured('info', 'worker found jobs', { count: (jobs || []).length });
   const results = [];
   for (const job of jobs || []) {
     results.push(await processAiStudioJob(job.id));

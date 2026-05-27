@@ -89,7 +89,9 @@ async function generateWithFallback({ outputType, payload }) {
   let lastError = null;
 
   for (const model of chain) {
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    // Provider retry: MAX 2 attempts per model for transient errors only
+    // Processor-level retry handles the rest
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
         const data = await callGeminiModel({ model, payload, attempt });
         if (outputType === 'image' && !findImagePart(data)) {
@@ -100,7 +102,17 @@ async function generateWithFallback({ outputType, payload }) {
         return { model, data };
       } catch (error) {
         lastError = error;
-        if (!error.retryable || attempt === 3) break;
+        console.warn(JSON.stringify({
+          ts: new Date().toISOString(),
+          level: 'warn',
+          service: 'ai-jobs',
+          msg: 'Gemini model failed',
+          model,
+          attempt,
+          error: error.message,
+          retryable: error.retryable,
+        }));
+        if (!error.retryable || attempt === 2) break;
         const jitter = Math.round(Math.random() * 750);
         await delay((750 * (2 ** (attempt - 1))) + jitter);
       }

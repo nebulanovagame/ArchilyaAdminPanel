@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!-- saved from url=(0051)https://mimerra.com/design-studio/add-product-photo -->
+<html lang="tr" dir="ltr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <link rel="icon" type="image/png" href="https://mimerra.com/logofavicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="https://mimerra.com/assets/images/logo/logo.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f1115">
+    <title>Mimerra</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+    <link href="./Sıfırdan Oda Planı ile Render Mimerra_files/css2" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+    <link href="./Sıfırdan Oda Planı ile Render Mimerra_files/css2(1)" rel="stylesheet">
+    <link href="./Sıfırdan Oda Planı ile Render Mimerra_files/css2(2)" rel="stylesheet">
+    <link href="./Sıfırdan Oda Planı ile Render Mimerra_files/css2(3)" rel="stylesheet">
+    <link href="./Sıfırdan Oda Planı ile Render Mimerra_files/icon" rel="stylesheet">
+    <!-- Facebook Pixel Code -->
+    <script src="./Sıfırdan Oda Planı ile Render Mimerra_files/726461563623510" async=""></script><script async="" src="./Sıfırdan Oda Planı ile Render Mimerra_files/fbevents.js"></script><script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window,document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+     fbq('init', '726461563623510'); 
+    fbq('track', 'PageView');
+    </script>
+    <!-- End Facebook Pixel Code -->
+    <style>
+      /* Loading state için başlangıç stilleri */
+      html, body {
+        overflow-x: hidden;
+        width: 100%;
+        max-width: 100%;
+      }
+      body {
+        background-color: #111827;
+        margin: 0;
+        padding: 0;
+      }
+      /* İlk yükleme sırasında root'un görünür olmasını engelle */
+      #root:empty {
+        min-height: 100vh;
+      }
+      /* Loading spinner */
+      .loader {
+        border: 3px solid #374151;
+        border-top: 3px solid #3b82f6;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        margin: -20px 0 0 -20px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      #root:not(:empty) ~ .loader {
+        display: none;
+      }
+    </style>
+
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0",
+    "jspdf": "https://aistudiocdn.com/jspdf@^2.5.1",
+    "three": "https://aistudiocdn.com/three@^0.166.0/build/three.module.js",
+    "three/examples/jsm/": "https://aistudiocdn.com/three@^0.166.0/examples/jsm/",
+    "three/": "https://aistudiocdn.com/three@^0.181.0/",
+    "jszip": "https://aistudiocdn.com/jszip@^3.10.1",
+    "jspdf-autotable": "https://aistudiocdn.com/jspdf-autotable@^5.0.2",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.5.0/"
+  }
+}
+</script>
+  <script type="module" crossorigin="" src="./Sıfırdan Oda Planı ile Render Mimerra_files/index-CPkxgmqE.js"></script>
+  <link rel="modulepreload" crossorigin="" href="https://mimerra.com/assets/react-vendor-pTGe9EkL.js">
+  <link rel="modulepreload" crossorigin="" href="https://mimerra.com/assets/firebase-vendor-XaZv5OcM.js">
+  <link rel="stylesheet" crossorigin="" href="./Sıfırdan Oda Planı ile Render Mimerra_files/index-JgXCVVFy.css">
+<style>#tr-popup,#tr-popup * {all: unset;}#tr-popup {font: 15px "Segoe UI", Arial, Helvetica, sans-serif;color: #222;padding: 24px;display: block;z-index: 2147483647;position: absolute;max-width: 400px;min-width: 300px;direction: ltr;text-align: left;background: #fff;border-radius: 2px;box-sizing: border-box;box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 12px 24px 0 rgba(51, 51, 51, 0.3);transition: opacity, visibility;transition-duration: 0.2s;}#tr-popup[data-hidden="true"] {opacity: 0;visibility: hidden;}#tr-popup[data-position="top"] {margin-top: -12px;}#tr-popup[data-position="bottom"] {margin-top: 12px;}#tr-popup .tr-popup__arrow {top: 100%;left: 50%;width: 26px;height: 12px;display: block;position: absolute;margin-left: -13px;margin-top: -1px;background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNiIgaGVpZ2h0PSIxMiI+PHBhdGggZD0iTTAgMGwxMyAxMkwyNiAweiIgb3BhY2l0eT0iLjEiLz48cGF0aCBkPSJNMSAwbDEyIDExTDI1IDB6IiBmaWxsPSIjZmZmIi8+PC9zdmc+") no-repeat;}#tr-popup[data-position="bottom"] .tr-popup__arrow {top: auto;bottom: 100%;margin-bottom: -1px;transform: rotate(180deg);}#tr-popup .tr-popup__value,#tr-popup .tr-popup__block {word-wrap: break-word;white-space: pre-wrap;}[data-type="trSpan"][data-translated="true"][data-source-lang="ja"],[data-type="trSpan"][data-translated="true"][data-source-lang="zh"],#tr-popup .tr-popup__title_original,#tr-popup .tr-popup__block_a,#tr-popup .tr-popup__block_b,#tr-popup .tr-popup__button {font-family: "Segoe UI", Arial, Helvetica, sans-serif !important;}#tr-popup .tr-popup__title_original {font-weight: bold;}#tr-popup .tr-popup__block {display: block;}#tr-popup .tr-popup__link {cursor: pointer;-webkit-user-select: none;user-select: none;}#tr-popup .tr-popup__link_suggest {color: #1378d7;font-size: 13px;line-height: 18px;margin-right: 22px;}#tr-popup .tr-popup__link_suggest:hover,#tr-popup .tr-popup__link_suggest:active {color: #000;}#tr-popup .tr-popup__logo {height: 18px;opacity: 0.3;display: inline-block;transition: opacity 0.2s;vertical-align: top;}#tr-popup .tr-popup__logo_company {width: 34px;filter: brightness(0);background: url("https://yastatic.net/s3/trbro/v20.5.1.0/i/service_logo.svg");background-size: 34px;background-position: 0 -18px;}#tr-popup[lang="ru"] .tr-popup__logo_company {background-position: 0 0;}#tr-popup .tr-popup__logo_service {width: 42px;background: url("https://yastatic.net/s3/trbro/v20.5.1.0/i/service_name.svg");margin-left: 2px;background-size: 63px;background-position: 0 -18px;}#tr-popup[lang="ru"] .tr-popup__logo_service {width: 57px;background-position: 0 0;}#tr-popup[lang="uk"] .tr-popup__logo_service {width: 56px;background-position: 0 -36px;}#tr-popup[lang="tr"] .tr-popup__logo_service {width: 25px;background-position: 0 -54px;}#tr-popup .tr-popup__link_service:hover .tr-popup__logo {opacity: 0.6;}#tr-popup .tr-popup__input {width: 100%;height: 80px;resize: none;border: 2px solid #e5e5e5;padding: 8px;display: block;font-size: 15px;box-sizing: border-box;border-radius: 2px;}#tr-popup .tr-popup__input:focus {border-color: #bbb;}#tr-popup .tr-popup__block_a,#tr-popup .tr-popup__block_b {margin-top: 16px;}#tr-popup .tr-popup__block_a {display: flex;justify-content: space-between;}#tr-popup .tr-popup__block_b {position: relative;}#tr-popup .tr-popup__block_submit {text-align: right;margin-top: 24px;}#tr-popup .tr-popup__overlay {top: 0;left: 0;right: 0;bottom: 0;position: absolute;}#tr-popup .tr-popup__overlay_submitted {color: #999;z-index: 1;display: flex;background: #fff;align-items: center;justify-content: center;}#tr-popup:not([data-expanded="true"]) .tr-popup__block_b,#tr-popup:not([data-submitted="true"]) .tr-popup__overlay_submitted {display: none;}#tr-popup .tr-popup__menu {font-size: 13px;opacity: 0;visibility: hidden;white-space: nowrap;position: absolute;bottom: 100%;margin-bottom: 8px;padding: 4px 14px;z-index: 1;background-color: #f5f5f5;border: 1px solid #bbb;border-radius: 2px;box-shadow: 0px 0 0 1px rgba(0, 0, 0, 0.1), 0 8px 14px 0 rgba(51, 51, 51, 0.3);}#tr-popup[data-menu-position="left"] .tr-popup__menu {right: 0;}#tr-popup[data-menu="true"] .tr-popup__menu {opacity: 1;visibility: visible;}#tr-popup .tr-popup__menu:hover {background-color: #efefef;}#tr-popup .tr-popup__button {cursor: pointer;display: inline-block;-webkit-user-select: none;user-select: none;}#tr-popup .tr-popup__button_menu,#tr-popup .tr-popup__button_close {top: 4px;width: 20px;height: 20px;opacity: 0.3;position: absolute;}#tr-popup .tr-popup__button_close {right: 4px;background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+PHBhdGggZD0iTTkuMjkzIDEwTDYuMTQ2IDYuODU0YS41LjUgMCAxIDEgLjcwOC0uNzA4TDEwIDkuMjkzbDMuMTQ2LTMuMTQ3YS41LjUgMCAwIDEgLjcwOC43MDhMMTAuNzA3IDEwbDMuMTQ3IDMuMTQ2YS41LjUgMCAwIDEtLjcwOC43MDhMMTAgMTAuNzA3bC0zLjE0NiAzLjE0N2EuNS41IDAgMCAxLS43MDgtLjcwOEw5LjI5MyAxMHoiLz48L3N2Zz4=");}#tr-popup .tr-popup__button_menu {right: 24px;background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMjAiIHdpZHRoPSIyMCI+PHBhdGggZD0ibTUgNnYxaDEwdi0xaC0xMHptMCAzdjFoMTB2LTFoLTEwem0wIDN2MWgxMHYtMWgtMTB6Ii8+PC9zdmc+");}#tr-popup .tr-popup__button_menu:hover,#tr-popup .tr-popup__button_close:hover {opacity: 0.5;}#tr-popup .tr-popup__button_close:active {opacity: 0.6;}#tr-popup[data-menu="true"] .tr-popup__button_menu {opacity: 1;}#tr-popup .tr-popup__button_submit {color: #000;height: 28px;padding: 0 16px;font-size: 13px;min-width: 112px;background: #fc0;box-sizing: border-box;text-align: center;line-height: 28px;border-radius: 2px;}#tr-popup .tr-popup__button_submit:hover {background: #ffb800;}#tr-popup .tr-popup__button_submit:active {background: #ffa400;}#tr-popup[data-invalid="true"] .tr-popup__button_submit {color: rgba(0, 0, 0, 0.5);cursor: default;background: rgba(0, 0, 0, 0.1);}[data-type="trSpan"][data-selected="true"] {color: #222 !important;background: #cce4f7 !important;}[data-type="trSpan"] {font-size: inherit !important;}</style></head>
+  <body>
+    <!-- Facebook Pixel noscript fallback -->
+    <noscript>
+      <img height="1" width="1" style="display:none" 
+        src="https://www.facebook.com/tr?id=726461563623510&ev=PageView&noscript=1"/>
+    </noscript>
+    <div id="root"><div class="bg-[#181A20] text-white min-h-screen font-sans relative"><header class="fixed top-0 left-0 right-0 z-40 bg-[#181A20]/95 backdrop-blur-md border-b border-[#2b3139]"><div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16"><div class="flex items-center justify-between py-4 sm:py-6"><div><button class="hover:opacity-80 transition-opacity"><img alt="Mimerra Logo" class="h-10 sm:h-12 lg:h-13 xl:h-13 w-auto object-contain" src="./Sıfırdan Oda Planı ile Render Mimerra_files/Mimerra Logo - Sarı.png"></button></div><div class="flex items-center gap-2 sm:gap-3"><div class="mr-2"><div class="relative z-10"><button class="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-2 rounded-full border border-gray-700/50 bg-gray-900/50 hover:bg-gray-800/70 hover:border-[#F3BF14]/50 text-gray-300 hover:text-white transition-all text-xs md:text-sm font-medium w-[70px] md:w-[80px] justify-between"><span class="uppercase"><ya-tr-span data-index="1-0" data-translated="true" data-source-lang="" data-target-lang="tr" data-value="TR" data-translation="TR" data-ch="0" data-type="trSpan" style="visibility: inherit !important;">TR</ya-tr-span></span><span class="material-symbols-outlined text-base md:text-lg transition-transform duration-200 "><ya-tr-span data-index="1-1" data-translated="true" data-source-lang="" data-target-lang="tr" data-value="expand_more" data-translation="expand_more" data-ch="0" data-type="trSpan" style="visibility: inherit !important;">expand_more</ya-tr-span></span></button></div></div><div class="relative"><button class="flex items-center gap-2 bg-[#1e2026]/50 hover:bg-[#2b3139]/50 border border-[#2b3139] rounded-full py-1.5 px-4 transition-colors"><span class="text-[#EAECEF] font-semibold text-sm"><ya-tr-span data-index="2-0" data-translated="true" data-source-lang="" data-target-lang="tr" data-value="Hesabım" data-translation="Hesabım" data-ch="0" data-type="trSpan" style="visibility: inherit !important;">Hesabım</ya-tr-span></span><svg class="w-4 h-4 text-[#EAECEF]/60 transition-transform " fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button></div></div></div></div></header><main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-28 sm:pt-32 lg:pt-36"><div class="max-w-7xl mx-auto"><div class="flex flex-col h-full text-[#EAECEF] w-full px-4 sm:px-6 lg:px-8 max-w-[1920px] mx-auto py-8"><div class="flex items-center gap-4 mb-8"><button class="w-10 h-10 flex flex-shrink-0 items-center justify-center bg-[#1e2026] text-[#EAECEF] rounded-xl hover:bg-[#2b3139] transition-all border border-[#2b3139] hover:border-[#FCD535]/30 group shadow-lg" aria-label="Geri Dön"><div class="w-5 h-5 group-hover:-translate-x-0.5 transition-transform"><svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg></div></button><div><h1 class="text-3xl sm:text-4xl font-heading font-bold mb-2"><ya-tr-span data-index="786-0" data-translated="true" data-source-lang="" data-target-lang="tr" data-value="Hazır Oda Görseli Üzerinden Düzenleme" data-translation="Hazır Oda Görseli Üzerinden Düzenleme" data-ch="0" data-type="trSpan" style="visibility: inherit !important;">Hazır Oda Görseli Üzerinden Düzenleme</ya-tr-span></h1><p class="text-[#848E9C] text-sm sm:text-base"><ya-tr-span data-index="786-1" data-translated="true" data-source-lang="" data-target-lang="tr" data-value="Mevcut oda fotoğrafınızı yükleyip mobilyalar üzerinde değişiklik yapabilirsiniz." data-translation="Mevcut oda fotoğrafınızı yükleyip mobilyalar üzerinde değişiklik yapabilirsiniz." data-ch="0" data-type="trSpan" style="visibility: inherit !important;">Mevcut oda fotoğrafınızı yükleyip mobilyalar üzerinde değişiklik yapabilirsiniz.</ya-tr-span></p></div></div><input class="hidden" accept="image/*" type="file"><div class="w-full flex-grow flex flex-col items-center justify-center"><div class="w-full flex-grow flex flex-col items-center justify-center backdrop-blur-md border-2 border-dashed rounded-3xl p-8 min-h-[500px] cursor-pointer transition-all duration-300 group bg-[#181A20]/80 hover:bg-[#181A20] border-[#2b3139] hover:border-[#FCD535]/50"><div class="w-24 h-24 bg-[#1e2026] rounded-2xl flex items-center justify-center mx-auto mb-6 transition-transform duration-300 shadow-xl border group-hover:scale-110 group-hover:rotate-3 border-[#2b3139] group-hover:border-[#FCD535]/30"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image-plus w-10 h-10 transition-colors text-[#848E9C] group-hover:text-[#FCD535]" aria-hidden="true"><path d="M16 5h6"></path><path d="M19 2v6"></path><path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"></path><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path><circle cx="9" cy="9" r="2"></circle></svg></div><h3 class="text-2xl font-bold mb-3 transition-colors text-[#EAECEF] group-hover:text-white"><ya-tr-span data-index="787-0" data-translated="true" data-source-lang="" data-target-lang="tr" data-value="Oda Fotoğrafı Yükle" data-translation="Oda Fotoğrafı Yükle" data-ch="0" data-type="trSpan" style="visibility: inherit !important;">Oda Fotoğrafı Yükle</ya-tr-span></h3><p class="text-[#848E9C] max-w-md mx-auto mb-8 text-center text-sm md:text-base leading-relaxed"><ya-tr-span data-index="787-1" data-translated="true" data-source-lang="" data-target-lang="tr" data-value="Değiştirmek istediğiniz odanın fotoğrafını buraya tıklayarak veya sürükleyerek yükleyebilirsiniz. JPG, PNG formatları desteklenmektedir." data-translation="Değiştirmek istediğiniz odanın fotoğrafını buraya tıklayarak veya sürükleyerek yükleyebilirsiniz. JPG, PNG formatları desteklenmektedir." data-ch="0" data-type="trSpan" style="visibility: inherit !important;">Değiştirmek istediğiniz odanın fotoğrafını buraya tıklayarak veya sürükleyerek yükleyebilirsiniz. JPG, PNG formatları desteklenmektedir.</ya-tr-span></p><button class="px-8 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white font-bold rounded-xl shadow-[0_8px_20px_rgba(245,158,11,0.2)] transition-all"><ya-tr-span data-index="787-2" data-translated="true" data-source-lang="" data-target-lang="tr" data-value="BİLGİSAYARDAN SEÇ" data-translation="BİLGİSAYARDAN SEÇ" data-ch="0" data-type="trSpan" style="visibility: inherit !important;">BİLGİSAYARDAN SEÇ</ya-tr-span></button></div></div></div></div></main><button class="fixed bottom-6 right-6 bg-[#F0B90B]/80 hover:bg-[#FCD535] hover:opacity-100 text-[#181A20] rounded-full py-2.5 px-5 shadow-lg transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#181A20] focus:ring-[#FCD535] z-50 font-semibold text-sm opacity-90" aria-label="Talep Bildir">Talep Bildir</button></div><button class="fixed bottom-24 right-6 z-50 bg-[#F0B90B]/80 hover:bg-[#FCD535] hover:opacity-100 text-[#181A20] rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 group opacity-90" aria-label="İletişim Bilgileri"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg><span class="hidden sm:inline-block font-semibold"><ya-tr-span data-index="0-0" data-translated="true" data-source-lang="" data-target-lang="tr" data-value="İletişim" data-translation="İletişim" data-ch="0" data-type="trSpan" style="visibility: inherit !important;">İletişim</ya-tr-span></span></button></div>
+    <div class="loader"></div>
+  <script defer="" src="./Sıfırdan Oda Planı ile Render Mimerra_files/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;c67dc40465994d38bfc018472adb47a5&quot;,&quot;r&quot;:1,&quot;server_timing&quot;:{&quot;name&quot;:{&quot;cfCacheStatus&quot;:true,&quot;cfEdge&quot;:true,&quot;cfExtPri&quot;:true,&quot;cfL4&quot;:true,&quot;cfOrigin&quot;:true,&quot;cfSpeedBrain&quot;:true},&quot;location_startswith&quot;:null}}" crossorigin="anonymous"></script>
+
+<div id="tr-popup" class="tr-popup" translate="no" data-hidden="true" data-invalid="true" data-disabled="false" lang="en" data-expanded="false" data-menu="false" data-translation="Sıfırdan Oda Planı ile Render" style="top: 453px; left: 340.625px;" data-menu-position="right" data-submitted="false"><div class="tr-popup__block"><span class="tr-popup__title_original">Original text:</span> <span class="tr-popup__value">Sıfırdan Oda Planı ile Render</span></div><div class="tr-popup__block tr-popup__block_a"><span class="tr-popup__link tr-popup__link_suggest" data-action="expand">Suggest translation</span><a href="https://translate.yandex.com/" class="tr-popup__link tr-popup__link_service" target="_blank" data-action="navigate"><span class="tr-popup__logo tr-popup__logo_company"></span><span class="tr-popup__logo tr-popup__logo_service"></span></a></div><div class="tr-popup__block tr-popup__block_b"><textarea class="tr-popup__input" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" maxlength="1000"></textarea><div class="tr-popup__block tr-popup__block_submit"><span role="button" class="tr-popup__button tr-popup__button_submit" data-action="send">Submit</span></div><div class="tr-popup__overlay tr-popup__overlay_submitted">Thank you, the translation is sent</div></div><span role="button" class="tr-popup__button tr-popup__button_close" data-action="clickClose"></span><span role="button" class="tr-popup__button tr-popup__button_menu" data-action="clickMenu"><span class="tr-popup__menu" data-action="disablePopup">Disable display of original text</span></span><span class="tr-popup__arrow"></span></div></body></html>

@@ -11,7 +11,7 @@ This is **not a monorepo**. There is no root `package.json`, workspace config, o
 | `ArchilyaWebBackend/` | Firebase Functions | Node 20, plain JS (CommonJS) | Cloud Functions backend (11 domains) |
 | `ArchilyaLauncher/` | Electron 40 | React 19, Vite 7, Tailwind 4 | Game launcher + Pixel Streaming |
 | `ArchilyaAdminPanel/` | Electron 28 | React 18, Vite 5, Tailwind 3 | B2B admin panel (legacy stack) |
-| `Mimerra/` | Static HTML | — | AI prototype outputs, not source code |
+| `Mimerra/` | Static HTML | — | AI prototype outputs (439 files: 32 saved SPA snapshots + duplicated assets). NOT source code. See security notes below. |
 | `ArchilyaSkills/` | Markdown docs | — | Build guides and sign-in fix docs |
 | `docs/` | Markdown docs | — | RevenueCat / Play Console setup guides |
 | `src/` | Orphaned TSX | — | Single dead file (`renderer/components/FilePreviewContent.tsx`); no `package.json` |
@@ -122,7 +122,14 @@ All target project `nng-toma` (see `.firebaserc` in WebPanel and WebBackend).
 - **Tailwind version split**: WebPanel and Launcher use Tailwind v4 (`@tailwindcss/postcss`). WebSitesi, Mobil, and AdminPanel use Tailwind v3. Do not copy PostCSS configs between them.
 - **No shared lint/prettier config** at root. Each project has its own ESLint flat config.
 - **`src/` at repo root is orphaned** — it contains a single file (`renderer/components/FilePreviewContent.tsx`) and has no `package.json`. An identical, also-unreferenced copy exists at `ArchilyaLauncher/src/renderer/components/FilePreviewContent.tsx`. Both are dead code.
-- **`Mimerra/` is not source code** — it contains static HTML prototype reports and their assets (e.g., `İç Mekan Render Üret Mimerra.html`). Do not attempt to build or lint it.
+- **`Mimerra/` is not source code** — it contains 32 static HTML files saved from `mimerra.com/design-studio/*` via browser "Save Page As" (Web Archive format). Each HTML is a full React 19 SPA snapshot with a paired `_files/` subdirectory (11–36 duplicated assets each: Vite bundle, CSS, Google Fonts, FB Pixel, Cloudflare beacon). ~439 files total, largely byte-identical duplicates. Do not attempt to build or lint.
+  - **🔴 Exposed secrets in `Mimerra_AI_Analiz_Raporu.html`**: Hardcoded Firebase config (`muttimoai` project — different from main `nng-toma`): `apiKey: AIzaSyAqgHhK_srZTPglM4x6tIiwRet1JFMU2VE`, `storageBucket: muttimoai.firebasestorage.app`, and `GEMINI_API_KEY` env var reference.
+  - **🔴 Exposed tracking tokens in ALL 30+ HTML files**: Cloudflare Web Analytics beacon (`c67dc40465994d38bfc018472adb47a5`) and Facebook Pixel ID (`726461563623510`).
+  - **⚠️ External CDN dependency**: Import map loads React 19, Firebase 12, Three.js, etc. from `aistudiocdn.com`. Snapshots are NOT self-contained and require network access.
+  - **⚠️ Three.js version conflict**: Import map declares `three@^0.166.0` and `three/@^0.181.0` simultaneously.
+  - **Large file**: `Mimerra_Render_Sonuc.html` is 8.4 MB (JSON-encoded HTML render export).
+  - **Tooling artifacts**: `.playwright-mcp/` directory contains Playwright DOM snapshots and console logs — safe to delete.
+  - **File naming**: All HTML files use the pattern `{TurkishToolName} Mimerra.html` with corresponding `{TurkishToolName} Mimerra_files/` dir.
 - **`.env` files exist in 4 projects** (WebPanel, Launcher, WebBackend/functions, Mobil).
   - **WebPanel, Mobil, WebBackend/functions** correctly gitignore `.env` files.
   - **🔴 CRITICAL — `ArchilyaLauncher/.env` is NOT gitignored** and contains a real Google OAuth client secret + Firebase API key. The `.gitignore` only has `*.local` (covers `.env.local`, not `.env`). This file will be committed on `git add .`.

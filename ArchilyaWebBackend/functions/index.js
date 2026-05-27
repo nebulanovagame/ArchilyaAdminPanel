@@ -71,16 +71,32 @@ tasks.onTaskDispatched = function (opts, handler) {
   return origOnTaskDispatched.call(tasks, opts, wrapHandler(handler, handler?.name || 'onTaskDispatched'));
 };
 
-// Re-export every domain so Firebase Functions discovers the handlers.
-// Shared helpers live in src/shared and are imported by each domain internally.
-Object.assign(exports, require('./src/ai-jobs'));
+// ───────────────────────────────────────────────────────────────
+// Domain Export — Active AI Job System: Supabase/Express Worker
+//
+// Legacy AI job modules (Cloud Tasks / Firestore) are DISABLED
+// by default.  Set ENABLE_LEGACY_AI_JOBS=true to re-enable during
+// a controlled migration window.  See docs/FAZ0_BACKEND_STABILIZATION.md
+// ───────────────────────────────────────────────────────────────
+
+// Non-AI domain modules (always active):
 Object.assign(exports, require('./src/credits'));
 Object.assign(exports, require('./src/workspaces'));
 Object.assign(exports, require('./src/projects'));
 Object.assign(exports, require('./src/payments'));
 Object.assign(exports, require('./src/notifications'));
-Object.assign(exports, require('./src/ai-legacy'));
 Object.assign(exports, require('./src/r2-admin'));
 Object.assign(exports, require('./src/r2-user'));
 Object.assign(exports, require('./src/contact'));
+
+// Legacy AI job system (Cloud Tasks + Firestore) — FAZ 0 disabled
+if (process.env.ENABLE_LEGACY_AI_JOBS === 'true') {
+  console.info('[index] Legacy AI jobs ENABLED (Cloud Tasks / Firestore). This is NOT the default path.');
+  Object.assign(exports, require('./src/ai-jobs'));     // Cloud Tasks queue handlers
+  Object.assign(exports, require('./src/ai-legacy'));   // Firestore-based AI tools
+} else {
+  console.info('[index] Legacy AI jobs DISABLED. Active AI system: Supabase/Express worker.');
+}
+
+// Legacy user management helpers (non-AI, still active):
 Object.assign(exports, require('./src/legacy'));

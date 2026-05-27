@@ -52,9 +52,39 @@ function startAiStudioWorker() {
 }
 
 function stopAiStudioWorker() {
-  if (!intervalHandle) return;
+  if (!intervalHandle) {
+    console.info('[ai-jobs] interval worker already stopped');
+    return;
+  }
   clearInterval(intervalHandle);
   intervalHandle = null;
+  console.info('[ai-jobs] interval worker stopped');
 }
 
-module.exports = { runAiStudioWorkerScan, startAiStudioWorker, stopAiStudioWorker, isWorkerEnabled };
+function isRunning() {
+  return running;
+}
+
+async function gracefulShutdown() {
+  console.info('[ai-jobs] graceful shutdown requested');
+  stopAiStudioWorker();
+  if (running) {
+    console.info('[ai-jobs] waiting for active scan to complete...');
+    // Wait up to 30s for active scan to finish
+    const maxWait = 30000;
+    const interval = 500;
+    let waited = 0;
+    while (running && waited < maxWait) {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      waited += interval;
+    }
+    if (running) {
+      console.warn('[ai-jobs] active scan did not finish within timeout');
+    } else {
+      console.info('[ai-jobs] active scan completed');
+    }
+  }
+  console.info('[ai-jobs] shutdown complete');
+}
+
+module.exports = { runAiStudioWorkerScan, startAiStudioWorker, stopAiStudioWorker, isWorkerEnabled, isRunning, gracefulShutdown };

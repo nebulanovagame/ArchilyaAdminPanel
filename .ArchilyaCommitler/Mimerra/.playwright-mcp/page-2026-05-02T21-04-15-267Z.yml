@@ -1,0 +1,211 @@
+- generic [ref=e2]:
+  - generic [ref=e11]:
+    - banner [ref=e12]:
+      - generic [ref=e14]:
+        - button "Mimerra Logo" [ref=e16] [cursor=pointer]:
+          - img "Mimerra Logo" [ref=e17]
+        - generic [ref=e18]:
+          - button "TR expand_more" [ref=e21] [cursor=pointer]:
+            - generic [ref=e22]: TR
+            - generic [ref=e23]: expand_more
+          - button "Hesabım" [ref=e25] [cursor=pointer]:
+            - generic [ref=e26]: Hesabım
+            - img [ref=e27]
+    - main [ref=e29]:
+      - main [ref=e33]:
+        - generic [ref=e35]:
+          - generic [ref=e37]:
+            - button "Hepsi" [ref=e38] [cursor=pointer]
+            - button "Mimarlar" [ref=e39] [cursor=pointer]
+            - button "İç Mimarlar" [ref=e40] [cursor=pointer]
+            - button "İnşaat Şirketleri" [ref=e41] [cursor=pointer]
+            - button "Emlak" [ref=e42] [cursor=pointer]
+            - button "Ev Sahipleri" [ref=e43] [cursor=pointer]
+            - button "Üreticiler" [ref=e44] [cursor=pointer]
+          - generic [ref=e45]:
+            - button "Sağa kaydır" [ref=e46] [cursor=pointer]: ‹
+            - generic [ref=e47]:
+              - button "SketchUp Çiziminden Render Al" [ref=e48] [cursor=pointer]:
+                - generic [ref=e54]:
+                  - generic [ref=e55]: SketchUp Çiziminden Render Al
+                  - generic [ref=e56]: SketchUp modelini yükle, saniyeler içinde fotorealistik render oluştur
+              - button "AutoCAD / DXF'ten Render" [ref=e57] [cursor=pointer]:
+                - generic [ref=e63]:
+                  - generic [ref=e64]: AutoCAD / DXF'ten Render
+                  - generic [ref=e65]: Teknik çizimden yaşayan mekana
+              - button "El Çiziminden Render Al" [ref=e66] [cursor=pointer]:
+                - generic [ref=e72]:
+                  - generic [ref=e73]: El Çiziminden Render Al
+                  - generic [ref=e74]: Kağıt taslağını anında görselleştir
+              - button "Mevcut Odamı Yenile" [ref=e75] [cursor=pointer]:
+                - generic [ref=e81]:
+                  - generic [ref=e82]: Mevcut Odamı Yenile
+                  - generic [ref=e83]: Eski odanı yeni konseptle dönüştür
+              - button "Ürün Katalog Görselleri Üret" [ref=e84] [cursor=pointer]:
+                - generic [ref=e90]:
+                  - generic [ref=e91]: Ürün Katalog Görselleri Üret
+                  - generic [ref=e92]: Ürününü yükle, profesyonel katalog görselleri oluştur
+              - button "Modele Kumaş Ataması" [ref=e93] [cursor=pointer]:
+                - generic [ref=e99]:
+                  - generic [ref=e100]: Modele Kumaş Ataması
+                  - generic [ref=e101]: Aynı model üzerine farklı kumaş / kaplama seçenekleri uygula
+              - button "Renderdan Video Üret" [ref=e102] [cursor=pointer]:
+                - generic [ref=e108]:
+                  - generic [ref=e109]: Renderdan Video Üret
+                  - generic [ref=e110]: Tek renderdan sinematik video oluştur
+              - button "Ürün Koleksiyonu Oluştur" [ref=e111] [cursor=pointer]:
+                - generic [ref=e117]:
+                  - generic [ref=e118]: Ürün Koleksiyonu Oluştur
+                  - generic [ref=e119]: Tüm koleksiyonun render'ı tek akışta
+              - button "Dış Mekan Drone Çekimi Al" [ref=e120] [cursor=pointer]:
+                - generic [ref=e126]:
+                  - generic [ref=e127]: Dış Mekan Drone Çekimi Al
+                  - generic [ref=e128]: Binanı havadan fotorealistik gör
+              - button "Render Varyasyonları Üret" [ref=e129] [cursor=pointer]:
+                - generic [ref=e135]:
+                  - generic [ref=e136]: Render Varyasyonları Üret
+                  - generic [ref=e137]: Aynı mekan, farklı kompozisyonlar
+              - button "Farklı Malzeme Senaryoları Üret" [ref=e138] [cursor=pointer]:
+                - generic [ref=e144]:
+                  - generic [ref=e145]: Farklı Malzeme Senaryoları Üret
+                  - generic [ref=e146]: Mermer mi ahşap mı — ikisini de gör
+              - button "Mobilya Yerleşim Varyasyonları Üret" [ref=e147] [cursor=pointer]:
+                - generic [ref=e153]:
+                  - generic [ref=e154]: Mobilya Yerleşim Varyasyonları Üret
+                  - generic [ref=e155]: Aynı ürünler, farklı dizilim seçenekleri
+              - button "Proje Tanıtım Dökümanı Oluştur" [ref=e156] [cursor=pointer]:
+                - generic [ref=e162]:
+                  - generic [ref=e163]: Proje Tanıtım Dökümanı Oluştur
+                  - generic [ref=e164]: Render'dan profesyonel proje dosyası
+              - button "Malzeme Listesi Oluştur" [ref=e165] [cursor=pointer]:
+                - generic [ref=e171]:
+                  - generic [ref=e172]: Malzeme Listesi Oluştur
+                  - generic [ref=e173]: Render'dan tüm malzemeleri otomatik çıkar
+              - button "Kesim Listesi Oluştur" [ref=e174] [cursor=pointer]:
+                - generic [ref=e180]:
+                  - generic [ref=e181]: Kesim Listesi Oluştur
+                  - generic [ref=e182]: Kaynak renderdan kesim listesi oluştur ve PDF olarak indir
+              - button "Boş Arsadan Proje Oluştur" [ref=e183] [cursor=pointer]:
+                - generic [ref=e189]:
+                  - generic [ref=e190]: Boş Arsadan Proje Oluştur
+                  - generic [ref=e191]: Arsanı yükle, saniyeler içinde mimari yerleşim al.
+              - button "Plan Üret" [ref=e192] [cursor=pointer]:
+                - generic [ref=e198]:
+                  - generic [ref=e199]: Plan Üret
+                  - generic [ref=e200]: Metinlerle veya render üzerinden 2D, renkli, izometrik plan üret
+              - button "Render Kalitesini Yükselt" [ref=e201] [cursor=pointer]:
+                - generic [ref=e207]:
+                  - generic [ref=e208]: Render Kalitesini Yükselt
+                  - generic [ref=e209]: Görselini analiz et, Pro Render ile ultra gerçekçi çıktı al
+              - button "SketchUp Çiziminden Render Al" [ref=e210] [cursor=pointer]:
+                - generic [ref=e216]:
+                  - generic [ref=e217]: SketchUp Çiziminden Render Al
+                  - generic [ref=e218]: SketchUp modelini yükle, saniyeler içinde fotorealistik render oluştur
+              - button "AutoCAD / DXF'ten Render" [ref=e219] [cursor=pointer]:
+                - generic [ref=e225]:
+                  - generic [ref=e226]: AutoCAD / DXF'ten Render
+                  - generic [ref=e227]: Teknik çizimden yaşayan mekana
+              - button "El Çiziminden Render Al" [ref=e228] [cursor=pointer]:
+                - generic [ref=e234]:
+                  - generic [ref=e235]: El Çiziminden Render Al
+                  - generic [ref=e236]: Kağıt taslağını anında görselleştir
+              - button "Mevcut Odamı Yenile" [ref=e237] [cursor=pointer]:
+                - generic [ref=e243]:
+                  - generic [ref=e244]: Mevcut Odamı Yenile
+                  - generic [ref=e245]: Eski odanı yeni konseptle dönüştür
+              - button "Ürün Katalog Görselleri Üret" [ref=e246] [cursor=pointer]:
+                - generic [ref=e252]:
+                  - generic [ref=e253]: Ürün Katalog Görselleri Üret
+                  - generic [ref=e254]: Ürününü yükle, profesyonel katalog görselleri oluştur
+              - button "Modele Kumaş Ataması" [ref=e255] [cursor=pointer]:
+                - generic [ref=e261]:
+                  - generic [ref=e262]: Modele Kumaş Ataması
+                  - generic [ref=e263]: Aynı model üzerine farklı kumaş / kaplama seçenekleri uygula
+              - button "Renderdan Video Üret" [ref=e264] [cursor=pointer]:
+                - generic [ref=e270]:
+                  - generic [ref=e271]: Renderdan Video Üret
+                  - generic [ref=e272]: Tek renderdan sinematik video oluştur
+              - button "Ürün Koleksiyonu Oluştur" [ref=e273] [cursor=pointer]:
+                - generic [ref=e279]:
+                  - generic [ref=e280]: Ürün Koleksiyonu Oluştur
+                  - generic [ref=e281]: Tüm koleksiyonun render'ı tek akışta
+              - button "Dış Mekan Drone Çekimi Al" [ref=e282] [cursor=pointer]:
+                - generic [ref=e288]:
+                  - generic [ref=e289]: Dış Mekan Drone Çekimi Al
+                  - generic [ref=e290]: Binanı havadan fotorealistik gör
+              - button "Render Varyasyonları Üret" [ref=e291] [cursor=pointer]:
+                - generic [ref=e297]:
+                  - generic [ref=e298]: Render Varyasyonları Üret
+                  - generic [ref=e299]: Aynı mekan, farklı kompozisyonlar
+              - button "Farklı Malzeme Senaryoları Üret" [ref=e300] [cursor=pointer]:
+                - generic [ref=e306]:
+                  - generic [ref=e307]: Farklı Malzeme Senaryoları Üret
+                  - generic [ref=e308]: Mermer mi ahşap mı — ikisini de gör
+              - button "Mobilya Yerleşim Varyasyonları Üret" [ref=e309] [cursor=pointer]:
+                - generic [ref=e315]:
+                  - generic [ref=e316]: Mobilya Yerleşim Varyasyonları Üret
+                  - generic [ref=e317]: Aynı ürünler, farklı dizilim seçenekleri
+              - button "Proje Tanıtım Dökümanı Oluştur" [ref=e318] [cursor=pointer]:
+                - generic [ref=e324]:
+                  - generic [ref=e325]: Proje Tanıtım Dökümanı Oluştur
+                  - generic [ref=e326]: Render'dan profesyonel proje dosyası
+              - button "Malzeme Listesi Oluştur" [ref=e327] [cursor=pointer]:
+                - generic [ref=e333]:
+                  - generic [ref=e334]: Malzeme Listesi Oluştur
+                  - generic [ref=e335]: Render'dan tüm malzemeleri otomatik çıkar
+              - button "Kesim Listesi Oluştur" [ref=e336] [cursor=pointer]:
+                - generic [ref=e342]:
+                  - generic [ref=e343]: Kesim Listesi Oluştur
+                  - generic [ref=e344]: Kaynak renderdan kesim listesi oluştur ve PDF olarak indir
+              - button "Boş Arsadan Proje Oluştur" [ref=e345] [cursor=pointer]:
+                - generic [ref=e351]:
+                  - generic [ref=e352]: Boş Arsadan Proje Oluştur
+                  - generic [ref=e353]: Arsanı yükle, saniyeler içinde mimari yerleşim al.
+              - button "Plan Üret" [ref=e354] [cursor=pointer]:
+                - generic [ref=e360]:
+                  - generic [ref=e361]: Plan Üret
+                  - generic [ref=e362]: Metinlerle veya render üzerinden 2D, renkli, izometrik plan üret
+              - button "Render Kalitesini Yükselt" [ref=e363] [cursor=pointer]:
+                - generic [ref=e369]:
+                  - generic [ref=e370]: Render Kalitesini Yükselt
+                  - generic [ref=e371]: Görselini analiz et, Pro Render ile ultra gerçekçi çıktı al
+            - button "Sola kaydır" [ref=e372] [cursor=pointer]: ›
+        - generic [ref=e373]:
+          - button "Sıfırdan Render Üret Sıfırdan Render Üret Yaratıcılığını ateşle." [ref=e374] [cursor=pointer]:
+            - img "Sıfırdan Render Üret" [ref=e375]
+            - generic [ref=e377]:
+              - heading "Sıfırdan Render Üret" [level=2] [ref=e378]
+              - paragraph [ref=e379]: Yaratıcılığını ateşle.
+          - button "Kendi Modellerinden Render Üret Kendi Modellerinden Render Üret Kendi modellerinizle render alın" [ref=e380] [cursor=pointer]:
+            - img "Kendi Modellerinden Render Üret" [ref=e381]
+            - generic [ref=e383]:
+              - heading "Kendi Modellerinden Render Üret" [level=2] [ref=e384]
+              - paragraph [ref=e385]: Kendi modellerinizle render alın
+            - img [ref=e387]
+          - button "Render Düzenle Render Düzenle Mükemmeli yakala." [ref=e389] [cursor=pointer]:
+            - img "Render Düzenle" [ref=e390]
+            - generic [ref=e392]:
+              - heading "Render Düzenle" [level=2] [ref=e393]
+              - paragraph [ref=e394]: Mükemmeli yakala.
+          - button "Odamı Tasarla Odamı Tasarla Hayallerini yaşa." [ref=e395] [cursor=pointer]:
+            - img "Odamı Tasarla" [ref=e396]
+            - generic [ref=e398]:
+              - heading "Odamı Tasarla" [level=2] [ref=e399]
+              - paragraph [ref=e400]: Hayallerini yaşa.
+          - button "Render Analizi Çıkar Render Analizi Çıkar Derinlemesine gör." [ref=e401] [cursor=pointer]:
+            - img "Render Analizi Çıkar" [ref=e402]
+            - generic [ref=e404]:
+              - heading "Render Analizi Çıkar" [level=2] [ref=e405]
+              - paragraph [ref=e406]: Derinlemesine gör.
+          - button "Ürün Tasarla ve Model Oluştur Ürün Tasarla ve Model Oluştur Geleceği şekillendir." [ref=e407] [cursor=pointer]:
+            - img "Ürün Tasarla ve Model Oluştur" [ref=e408]
+            - generic [ref=e410]:
+              - heading "Ürün Tasarla ve Model Oluştur" [level=2] [ref=e411]
+              - paragraph [ref=e412]: Geleceği şekillendir.
+        - button "Technical architectural drawing Teknik ve Üretim Çizimi" [ref=e413] [cursor=pointer]:
+          - img "Technical architectural drawing" [ref=e414]
+          - heading "Teknik ve Üretim Çizimi" [level=2] [ref=e417]
+    - button "Talep Bildir" [ref=e418] [cursor=pointer]
+  - button "İletişim Bilgileri" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+    - generic [ref=e10]: İletişim

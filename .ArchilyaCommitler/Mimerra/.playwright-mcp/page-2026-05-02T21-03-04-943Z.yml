@@ -1,0 +1,29 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - button "TR expand_more" [ref=e7] [cursor=pointer]:
+      - generic [ref=e8]: TR
+      - generic [ref=e9]: expand_more
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - heading "Giriş" [level=2] [ref=e16]
+          - paragraph [ref=e17]: Lütfen devam etmek için kullanıcı bilgilerinizi girin.
+        - button "arrow_back" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]: arrow_back
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: E-posta
+          - textbox "E-posta" [ref=e23]:
+            - /placeholder: E-posta adresinizi girin
+        - generic [ref=e24]:
+          - generic [ref=e25]: Şifre
+          - textbox "Şifre" [ref=e26]:
+            - /placeholder: Şifrenizi girin
+        - button "Giriş Yap" [ref=e27] [cursor=pointer]
+      - button "Şifremi Unuttum" [ref=e30] [cursor=pointer]
+      - paragraph [ref=e32]:
+        - text: Hesabın yok mu?
+        - button "Kayıt Ol" [ref=e33] [cursor=pointer]
+  - button "İletişim Bilgileri" [ref=e34] [cursor=pointer]:
+    - img [ref=e35]
+    - generic [ref=e37]: İletişim

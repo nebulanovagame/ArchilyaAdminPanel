@@ -1,8 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-04-13
-**Commit:** unborn
-**Branch:** master
+**Generated:** 2026-05-26
+**Commit:** bea1ecf
+**Branch:** firebase-removal-supabase-migration
 
 ## OVERVIEW
 Expo Router mobile app for Archilya. Core stack: Expo 55, React Native, expo-router, NativeWind, Firebase Auth/Firestore/Storage/Functions, EAS builds.
@@ -26,11 +26,11 @@ Expo Router mobile app for Archilya. Core stack: Expo 55, React Native, expo-rou
 | Main tabs | `app/(tabs)/_layout.tsx` | Panel, projects, inbox, AI Studio |
 | Auth screens | `app/(auth)/` | login/register/forgot-password |
 | Project detail route | `app/project/[id].tsx` | Typed route param |
-| Auth state | `src/context/AuthContext.js` | Firebase auth + profile hydration |
+| Auth state | `src/context/AuthContext.tsx` | Firebase auth + profile hydration |
 | Realtime data hooks | `src/hooks/` | Projects, notifications, workspace, invites, credits |
-| Secure backend calls | `src/services/entitlementService.js` | Callable-function gateway |
-| Firebase wiring | `src/config/firebase.js` | app/auth/db/storage setup |
-| AI flows | `src/services/ai*` + `src/hooks/useAiHistory.js` | Studio + history logic |
+| Secure backend calls | `src/services/entitlementService.ts` | Callable-function gateway |
+| Firebase wiring | `src/config/firebase.ts` | app/auth/db/storage setup |
+| AI flows | `src/services/aiStudioService.ts` + `src/hooks/useAiHistory.ts` | Studio + history logic |
 | Native release config | `eas.json` + `android/` | Internal dev/preview builds |
 | Planning docs | `docs/` | Product and release process |
 
@@ -40,17 +40,17 @@ Expo Router mobile app for Archilya. Core stack: Expo 55, React Native, expo-rou
 | `RootLayout` | route layout | `app/_layout.tsx` | Global providers, fonts, splash, route tree |
 | `InitialLayout` | route guard | `app/_layout.tsx` | Redirects auth vs tabs; routes push notifications |
 | `TabLayout` | route layout | `app/(tabs)/_layout.tsx` | Bottom tabs and inbox badge aggregation |
-| `AuthProvider` / `useAuth` | context | `src/context/AuthContext.js` | Session state + user profile sync |
-| `useProjects` | hook | `src/hooks/useProjects.js` | Project list, caching, secure mutations |
-| `useNotifications` | hook | `src/hooks/useNotifications.js` | Notification stream + read state |
-| `useWorkspace` | hook | `src/hooks/useWorkspace.js` | Workspace and invite coordination |
-| `entitlementService` helpers | service | `src/services/entitlementService.js` | Cloud Function wrappers |
-| `firebase.js` exports | config | `src/config/firebase.js` | Firebase singleton setup |
+| `AuthProvider` / `useAuth` | context | `src/context/AuthContext.tsx` | Session state + user profile sync |
+| `useProjects` | hook | `src/hooks/useProjects.ts` | Project list, caching, secure mutations |
+| `useNotifications` | hook | `src/hooks/useNotifications.ts` | Notification stream + read state |
+| `useWorkspace` | hook | `src/hooks/useWorkspace.ts` | Workspace and invite coordination |
+| `entitlementService` helpers | service | `src/services/entitlementService.ts` | Cloud Function wrappers |
+| `firebase` exports | config | `src/config/firebase.ts` | Firebase singleton setup |
 
 ## CONVENTIONS
 - Route-first UI: screens live in `app/`; logic lives in `src/`.
 - Auth gating happens in `app/_layout.tsx`, not inside individual screens.
-- Firebase access is centralized: config in `src/config/firebase.js`, auth in `src/context/AuthContext.js`, realtime reads in hooks, secure writes in service wrappers.
+- Firebase access is centralized: config in `src/config/firebase.ts`, auth in `src/context/AuthContext.tsx`, realtime reads in hooks, secure writes in service wrappers.
 - Hooks own domain state and Firestore subscriptions; services own callable/storage integrations.
 - Styling is NativeWind-first with a dark palette (`background`, `surface`, `primary`, `secondary`) defined in `tailwind.config.js`.
 - Expo Router special files are active here: `_layout.tsx`, `+html.tsx`, `+not-found.tsx`, route groups, and dynamic `[id].tsx`.
@@ -65,7 +65,7 @@ Expo Router mobile app for Archilya. Core stack: Expo 55, React Native, expo-rou
 - Product copy is predominantly Turkish.
 - Dark UI palette is hard-coded across screens: `#0f1115`, `#1a1c23`, `#2a2d36`, `#c6a87c`.
 - Tabs and route names are product-facing, but some file names still reflect starter naming (`two.tsx`, root `components/`).
-- The repo mixes TypeScript route/components with many `.js` Firebase hooks/services.
+- The codebase has migrated to TypeScript — all files are `.ts`/`.tsx`.
 
 ## COMMANDS
 ```bash
@@ -78,8 +78,7 @@ eas build --profile preview
 ```
 
 ## NOTES
-- `tailwind.config.js` scans `app/` and root `components/`, but not `src/components/`; that is an important styling gotcha because active modals live under `src/components/`.
+- `tailwind.config.js` scans `app/`, root `components/`, AND `src/components/`. No scan gap — Tailwind classes in `src/components/` are properly resolved.
 - `eas.json` has internal `development` and `preview` profiles; `production`/`submit.production` are still empty.
-- This repo is an unborn git branch right now (`master` with no commit history).
 - Root `components/` appears to contain Expo starter helpers (`Themed`, `StyledText`, `EditScreenInfo`, etc.). Verify usage before expanding it.
 - `docs/` is small and specific; keep roadmap/checklist material there instead of duplicating it in child AGENTS files.
