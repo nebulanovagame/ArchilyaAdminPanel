@@ -1,1 +1,0 @@
-components/ExternalLink.tsx(13,7): error TS2322: Type 'string' is not assignable to type '"/" | RelativePathString | ExternalPathString | "/ai-history" | `/ai-history?${string}` | `/ai-history#${string}` | "/credits" | `/credits?${string}` | `/credits#${string}` | "/file-preview" | ... 86 more ... | { ...; }'.

@@ -1,6 +1,0 @@
-const fs = require('fs');  
-let c = fs.readFileSync('electron/main.ts', 'utf8');  
-let oldStr = "  if (!currentUser) {\n    return { success: false, message: 'Oyunu ba\u015Flatmak i\u00E7in giri\u015F yapmal\u0131s\u0131n\u0131z.' };\n  }\n\n  try {\n      // UNREAL ENGINE PARAMETRELER\u0130\n      const args = [\n        `-UID=${currentUser.localId}`,\n        `-Token=${currentUser.idToken}`,\n        `-DisplayName=${currentUser.displayName || 'Player'}`,\n        `-IsGuest=${currentUser.isAnonymous ? '1' : '0'}`,\n        `-Verified=${currentUser.emailVerified ? '1' : '0'}`\n      ];";  
-let newStr = "  const user = auth.currentUser;\n  if (!user) {\n    return { success: false, message: 'Oyunu ba\u015Flatmak i\u00E7in giri\u015F yapmal\u0131s\u0131n\u0131z.' };\n  }\n\n  try {\n      const idToken = await user.getIdToken(false);\n      // UNREAL ENGINE PARAMETRELER\u0130\n      const args = [\n        `-UID=${user.uid}`,\n        `-Token=${idToken}`,\n        `-DisplayName=${user.displayName || 'Player'}`,\n        `-IsGuest=${user.isAnonymous ? '1' : '0'}`,\n        `-Verified=${user.emailVerified ? '1' : '0'}`\n      ];";  
-c = c.replace(oldStr, newStr);  
-fs.writeFileSync('electron/main.ts', c);  

@@ -1,8 +1,0 @@
-- generic [ref=e2]:
-  - generic [ref=e5]:
-    - generic [ref=e6]: Archilya
-    - generic [ref=e8]:
-      - generic [ref=e9]: System Initializing
-      - generic [ref=e10]: 0%
-  - generic:
-    - button "Archilya Asistanı"

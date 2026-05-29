@@ -1,5 +1,0 @@
-- generic [ref=e2]:
-  - img [ref=e4]
-  - button "İletişim Bilgileri" [ref=e7] [cursor=pointer]:
-    - img [ref=e8]
-    - generic [ref=e10]: İletişim
