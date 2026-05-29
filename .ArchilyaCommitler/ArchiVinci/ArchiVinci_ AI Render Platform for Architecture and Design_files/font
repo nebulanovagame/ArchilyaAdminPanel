@@ -1,0 +1,38 @@
+
+/*
+This CSS resource incorporates links to font software which is the valuable copyrighted
+property of Monotype Imaging and/or its suppliers. You may not attempt to copy, install,
+redistribute, convert, modify or reverse engineer this font software. Please contact Monotype
+Imaging with any questions regarding Web fonts:  http://webfonts.fonts.com
+*/
+
+@font-face {
+    font-display: block;
+    font-family:"Tahoma-W01-Regular";
+    src:url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/1b155b1c-e651-4a51-9d03-0ca480aeaf9f.eot?#iefix");
+    src:url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/1b155b1c-e651-4a51-9d03-0ca480aeaf9f.eot?#iefix") format("eot"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/20323430-24f4-4767-9d4d-060d1e89758a.woff") format("woff"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/6e17e62d-30cb-4840-8e9d-328c6b62316e.ttf") format("truetype"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/04ab3894-45ce-42ef-aa11-e7c0cd7f7da9.svg#04ab3894-45ce-42ef-aa11-e7c0cd7f7da9") format("svg");
+}
+@font-face {
+    font-display: block;
+    font-family: "Tahoma-W02-Regular";
+    src: url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/bb223dcd-0a16-4e5a-b38b-4f2a29f2bcbb.eot?#iefix");
+    src: url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/bb223dcd-0a16-4e5a-b38b-4f2a29f2bcbb.eot?#iefix") format("eot"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/94e45703-fbd7-46e5-9fcd-228ae59d6266.woff") format("woff"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/ef282b80-58de-4b03-a90f-c5703d54e3b7.ttf") format("truetype"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/cb11dfc6-f3c4-4a58-83ac-df735ba9c428.svg#cb11dfc6-f3c4-4a58-83ac-df735ba9c428") format("svg");
+}
+@font-face {
+    font-display: block;
+    font-family: "Tahoma-W10-Regular";
+    src: url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/50c03b26-fd3d-4fa1-96d0-d88b72129c4f.eot?#iefix");
+    src: url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/50c03b26-fd3d-4fa1-96d0-d88b72129c4f.eot?#iefix") format("eot"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/9ee00678-b6d7-4b4f-8448-70cfa267d36b.woff") format("woff"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/6861fb60-a657-44e2-92fa-86bd26cd2657.ttf") format("truetype"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/bf5f466c-6f51-449d-91b3-32f1f0c2b796.svg#bf5f466c-6f51-449d-91b3-32f1f0c2b796") format("svg");
+}
+@font-face {
+    font-display: block;
+    font-family:"Tahoma-W15--Regular";
+    src:url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/f0dd334c-878c-442c-bda3-0dbd122e87f1.eot?#iefix");
+    src:url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/f0dd334c-878c-442c-bda3-0dbd122e87f1.eot?#iefix") format("eot"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/ae844b11-5158-4caf-90b4-7ace49ac3440.woff") format("woff"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/e63ef4f4-b7b9-4f13-8db5-d7f5cf89839f.ttf") format("truetype"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/5ad2ed93-1ba0-4b2c-a421-22c5bcfb5b79.svg#5ad2ed93-1ba0-4b2c-a421-22c5bcfb5b79") format("svg");
+}
+@font-face {
+    font-display: block;
+    font-family:"Tahoma-W99-Regular";
+    src:url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/c3ebf729-2608-4787-9e5a-248f329aface.eot?#iefix");
+    src:url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/c3ebf729-2608-4787-9e5a-248f329aface.eot?#iefix") format("eot"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/d3bbaa1b-d5e3-431f-93a7-9cea63601bb6.woff") format("woff"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/78cb924f-227d-4ab9-83d5-f2b2e6656da5.ttf") format("truetype"),url("//static.parastorage.com/services/third-party/fonts/user-site-fonts/fonts/ca045297-34e1-462e-acc8-75ef196ada02.svg#ca045297-34e1-462e-acc8-75ef196ada02") format("svg");
+}

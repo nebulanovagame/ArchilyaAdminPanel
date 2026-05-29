@@ -1,9 +1,10 @@
 export const AI_STUDIO_TOOL_CREDIT_COSTS = {
   analysis: 5,
-  img2img: 20,
-  enhance: 20,
-  sceneedit: 35,
+  img2img: 15,
+  enhance: 15,
+  sceneedit: 25,
   plancolor: 15,
+  "multi-angle": 15,
 } as const;
 
 export type AiStudioToolId = keyof typeof AI_STUDIO_TOOL_CREDIT_COSTS;

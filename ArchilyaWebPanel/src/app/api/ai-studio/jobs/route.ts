@@ -19,6 +19,7 @@ async function handler(request: Request) {
   try {
     const body = validated.data;
     const accessToken = body.accessToken;
+    const promptContract = body.promptContract || undefined;
     const toolId = body.toolId;
 
     if (!isAiStudioToolId(toolId)) {
@@ -44,9 +45,11 @@ async function handler(request: Request) {
         style: body.style || "",
         sceneEditMode: body.sceneEditMode || "",
         extraNote: body.extraNote || "",
+        promptContract: promptContract || undefined,
         generationVariant: body.generationVariant || "default",
         imageUrls: body.imageUrls || [],
         referenceImages: body.referenceImages || [],
+        scenePreserveAreas: body.scenePreserveAreas || [],
       });
 
       return NextResponse.json({ success: true, result });

@@ -80,6 +80,30 @@ describe("mapAiStudioJobSnapshot", () => {
     expect(job.result.mimeType).toBe("image/png");
     expect(job.outputType).toBe("image");
   });
+
+  it("maps V3 prompt engine fields from camelCase and snake_case data", () => {
+    const snakeJob = mapAiStudioJobSnapshot(snapshot({
+      prompt_version: "v3-snake",
+      contract_snapshot: { template: "snake" },
+      provider_adapter: "openai-snake",
+    }, "job-snake"));
+
+    expect(snakeJob.promptVersion).toBe("v3-snake");
+    expect(snakeJob.contractSnapshot).toEqual({ template: "snake" });
+    expect(snakeJob.providerAdapter).toBe("openai-snake");
+
+    const camelJob = mapAiStudioJobSnapshot(snapshot({
+      promptVersion: "v3-camel",
+      contractSnapshot: { template: "camel" },
+      compiledPrompt: { prompt: "compiled" },
+      providerAdapter: "openai-camel",
+    }, "job-camel"));
+
+    expect(camelJob.promptVersion).toBe("v3-camel");
+    expect(camelJob.contractSnapshot).toEqual({ template: "camel" });
+    expect(camelJob.compiledPrompt).toEqual({ prompt: "compiled" });
+    expect(camelJob.providerAdapter).toBe("openai-camel");
+  });
 });
 
 describe("normalizeAiStudioJobStatus", () => {

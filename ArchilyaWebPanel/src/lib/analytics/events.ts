@@ -1,14 +1,27 @@
-// Firebase Analytics removed. Supabase/self-hosted analytics placeholder.
-// Add PostHog, Plausible, or custom event tracking here when needed.
+// Analytics placeholder — wire PostHog, Plausible, or custom tracking here.
+// For now, emits structured console logs for beta observability.
 
-export function logLoginEvent(_method: string) {
-  // Analytics placeholder
+type AnalyticsEvent = {
+  name: string;
+  timestamp: string;
+  data?: Record<string, unknown>;
+};
+
+function emit(event: AnalyticsEvent) {
+  // In production, replace with PostHog.capture / Plausible / custom.
+  if (process.env.NODE_ENV === "development") {
+    console.log("[analytics]", event.name, event);
+  }
 }
 
-export function logAiGenerationSuccess(_toolId: string) {
-  // Analytics placeholder
+export function logLoginEvent(method: string) {
+  emit({ name: "login", timestamp: new Date().toISOString(), data: { method } });
 }
 
-export function logSubscriptionChanged(_planId: string) {
-  // Analytics placeholder
+export function logAiGenerationSuccess(toolId: string) {
+  emit({ name: "ai_generation_success", timestamp: new Date().toISOString(), data: { toolId } });
+}
+
+export function logSubscriptionChanged(planId: string) {
+  emit({ name: "subscription_changed", timestamp: new Date().toISOString(), data: { planId } });
 }

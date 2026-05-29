@@ -4,8 +4,9 @@ const { createClient } = require('@supabase/supabase-js');
 
 function readLocalEnv() {
   const candidates = [
-    path.resolve(__dirname, '..', '..', '..', '.env'),
-    path.resolve(__dirname, '..', '..', '..', '..', '.env'),
+    path.resolve(__dirname, '..', '..', '.env'),            // functions/
+    path.resolve(__dirname, '..', '..', '..', '.env'),      // ArchilyaWebBackend/
+    path.resolve(__dirname, '..', '..', '..', '..', '.env'),// Archilya/
   ];
 
   for (const filePath of candidates) {

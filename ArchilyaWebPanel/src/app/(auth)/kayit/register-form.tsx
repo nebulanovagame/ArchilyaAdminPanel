@@ -108,6 +108,14 @@ export default function RegisterForm() {
         </div>
 
         <div className="bg-[#0d0f13] border border-white/5 rounded-sm p-8 md:p-10">
+          <div className="mb-5 rounded-sm border border-primary/10 bg-primary/5 px-4 py-3">
+            <p className="text-[10px] font-sans font-bold text-primary uppercase tracking-[0.15em]">
+              Ücretsiz Keşfetmeye Başlayın
+            </p>
+            <p className="text-[10px] font-sans text-gray-400 mt-1">
+              150 işlem hakkı, 3 proje ve 5 GB depolama ile ücretsiz başlayın. Kredi kartı gerekmez.
+            </p>
+          </div>
           <div className="mb-8">
             <p className="text-primary text-[10px] uppercase tracking-[0.25em] font-sans mb-1">
               Yeni Hesap

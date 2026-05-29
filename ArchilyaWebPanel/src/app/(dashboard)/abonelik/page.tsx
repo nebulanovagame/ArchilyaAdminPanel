@@ -286,6 +286,37 @@ export default function AbonelikPage() {
     await verifyPayment(token);
   }
 
+  async function handleAddOnCheckout(pkgId: string) {
+    if (!currentUser?.uid || checkoutBusy) return;
+
+    setCheckoutBusy(true);
+    setActiveCheckoutPlan(pkgId);
+    try {
+      const result = await createIyzicoCheckoutFormSecure(
+        pkgId,
+        currentUser.uid,
+        currentUser.email || "",
+        currentUser.name || t("common.user"),
+      );
+
+      if (!result?.token || !result?.checkoutFormContent) {
+        throw new Error(t("dashboard.subscription.iyzicoFormFailed"));
+      }
+
+      setCheckoutSession({
+        token: result.token,
+        checkoutFormContent: result.checkoutFormContent,
+        planId: pkgId,
+      });
+      setCheckoutModalOpen(true);
+    } catch {
+      toast.error(t("dashboard.subscription.addOnCheckoutFailed"));
+    } finally {
+      setCheckoutBusy(false);
+      setActiveCheckoutPlan("");
+    }
+  }
+
   async function handleCancelSubscription() {
     if (!currentUser?.uid || !activeWorkspace?.id) {
       toast.error(t("dashboard.subscription.workspaceRequired"));
@@ -578,10 +609,15 @@ export default function AbonelikPage() {
                 <p className="text-[10px] text-gray-600 mt-1">{hasSubscriberPricing ? t("dashboard.subscription.standardShort", { price: formatPrice(pkg.standardPrice) }) : t("dashboard.subscription.subscriberShort", { price: formatPrice(pkg.subscriberPrice) })}</p>
               </div>
               <button
-                onClick={() => toast.error(t("dashboard.subscription.addOnSoon"))}
-                className="w-8 h-8 rounded-sm border border-white/10 flex items-center justify-center hover:bg-white/5 transition-colors text-gray-400 hover:text-white group"
+                onClick={() => handleAddOnCheckout(pkg.id)}
+                disabled={checkoutBusy}
+                className="w-8 h-8 rounded-sm border border-white/10 flex items-center justify-center hover:bg-white/5 transition-colors text-gray-400 hover:text-white group disabled:opacity-40"
               >
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                {checkoutBusy && activeCheckoutPlan === pkg.id ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                )}
               </button>
             </motion.div>
           ))}

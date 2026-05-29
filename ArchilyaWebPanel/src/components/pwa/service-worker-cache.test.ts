@@ -10,7 +10,7 @@ const manifestPath = path.join(publicDir, "manifest.json");
 
 function readStaticAssets() {
   const swSource = fs.readFileSync(serviceWorkerPath, "utf8");
-  const match = swSource.match(/const PRECACHE_ASSETS = \[(.*?)\];/s);
+  const match = swSource.match(/const PRECACHE_ASSETS = \[([\s\S]*?)\];/);
 
   if (!match) {
     throw new Error("PRECACHE_ASSETS list could not be parsed from public/sw.js");

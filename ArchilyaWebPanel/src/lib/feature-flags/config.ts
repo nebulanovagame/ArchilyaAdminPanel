@@ -1,9 +1,10 @@
-export type FeatureFlagName = "batchAiGeneration" | "newDashboardLayout" | "experimentalTool";
+export type FeatureFlagName = "batchAiGeneration" | "newDashboardLayout" | "experimentalTool" | "promptEngineV3";
 
 export const FEATURE_FLAGS: Record<FeatureFlagName, boolean> = {
   batchAiGeneration: false,
   newDashboardLayout: false,
   experimentalTool: false,
+  promptEngineV3: false,
 };
 
 export function isFeatureEnabled(flagName: FeatureFlagName): boolean {

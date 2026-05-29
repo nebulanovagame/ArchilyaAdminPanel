@@ -19,6 +19,7 @@ async function handler(request: Request) {
   try {
     const body = validated.data;
     const accessToken = body.accessToken;
+    const promptContract = body.promptContract || undefined;
     const toolId = body.toolId;
 
     if (!FLUX_TOOL_IDS.has(toolId)) {
@@ -33,8 +34,10 @@ async function handler(request: Request) {
       style: body.style || "",
       sceneEditMode: body.sceneEditMode || "",
       extraNote: body.extraNote || "",
+      promptContract: promptContract || undefined,
       generationVariant: body.generationVariant || "default",
       referenceImages: body.referenceImages || [],
+      scenePreserveAreas: body.scenePreserveAreas || [],
     });
 
     return NextResponse.json({ success: true, result });

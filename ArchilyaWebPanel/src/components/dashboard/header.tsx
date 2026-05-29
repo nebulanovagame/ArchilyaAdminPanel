@@ -51,20 +51,18 @@ export default function Header({
           <span className="hidden lg:inline">{t("common.home")}</span>
         </Link>
 
-        {/* Search */}
-        <button
-          type="button"
+        {/* Search — coming soon */}
+        <div
           aria-label={t("common.search")}
-          disabled
-          className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-gray-500 hover:text-white px-3 py-1.5 rounded-sm transition-all group opacity-60 cursor-not-allowed"
+          className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/5 text-gray-600 px-3 py-1.5 rounded-sm transition-all opacity-50 pointer-events-none select-none"
         >
-          <Search className="w-3.5 h-3.5 group-hover:text-primary transition-colors" />
-          <span className="text-xs font-sans tracking-wide">{t("common.searchPlaceholder")}</span>
-          <div className="flex items-center gap-0.5 ml-2 text-[10px] bg-white/5 border border-white/10 px-1.5 rounded-[2px] font-mono text-gray-500">
+          <Search className="w-3.5 h-3.5" />
+          <span className="text-xs font-sans tracking-wide text-gray-600">{t("common.searchPlaceholder")}</span>
+          <div className="flex items-center gap-0.5 ml-2 text-[10px] bg-white/[0.03] border border-white/[0.05] px-1.5 rounded-[2px] font-mono text-gray-700">
             <span>⌘</span>
             <span>K</span>
           </div>
-        </button>
+        </div>
 
         {/* Credit pills — client island */}
         <CreditPills />

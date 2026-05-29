@@ -366,7 +366,7 @@ export default function DashboardPage() {
             href="/ai-studio"
             icon={Sparkles}
             label="AI Stüdyo"
-            desc="Görsel üretin, düzenleyin, iyileştirin"
+            desc="Sketchup görselinizi AI ile premium render'a dönüştürün, revize edin, analiz edin ve sunuma hazırlayın."
           />
           <QuickAction
             href="/abonelik"

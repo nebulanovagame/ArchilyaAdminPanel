@@ -5,6 +5,7 @@ const { chargeUserCredits, refundUserCredits } = require('../shared/credit-ledge
 const { EVENT_TYPES, recordJobEvent } = require('../shared/job-events');
 const { downloadStoredImage, storeOutputImage } = require('./storage');
 const { generateWithFallback, extractImage, extractText } = require('./gemini');
+const { buildAiStudioPromptV2, PROMPT_VERSION } = require('../shared/prompt-templates');
 
 // Retry Architecture (FAZ 0):
 // - Provider retry (gemini.js): MAX 2 attempts per model, only for transient network errors
@@ -86,16 +87,22 @@ function normalizeJobError(error) {
   };
 }
 
+/**
+ * Builds a tool-specific architectural prompt using the V2 prompt templates.
+ * Routes to buildTransformStylePrompt, buildEnhancedRenderPrompt, etc. based on toolId.
+ * Includes geometry-lock, reference-role-separation, and settings translation automatically.
+ *
+ * @param {Object} job - The job document from Supabase
+ * @returns {{ prompt: string, templateName: string, promptVersion: string, promptPreview: string }}
+ */
 function buildPrompt(job) {
-  const metadata = job.metadata && typeof job.metadata === 'object' ? job.metadata : {};
-  const parts = [
-    'You are Archilya AI Studio, a premium architecture visualization assistant.',
-    `Tool: ${job.tool_id || metadata.toolId || 'unknown'}`,
-    metadata.style ? `Style: ${metadata.style}` : '',
-    metadata.sceneEditMode ? `Scene edit mode: ${metadata.sceneEditMode}` : '',
-    job.prompt ? `User request: ${job.prompt}` : '',
-  ].filter(Boolean);
-  return parts.join('\n');
+  const metadata = (job.metadata && typeof job.metadata === 'object') ? job.metadata : {};
+  const promptContract = metadata.promptContract || null;
+  const jobForBuilder = { ...job, metadata };
+
+  const { prompt, templateName, promptVersion } = buildAiStudioPromptV2(jobForBuilder);
+  const promptPreview = String(prompt || '').slice(0, 400).replace(/\n/g, ' ');
+  return { prompt, templateName, promptVersion, promptPreview };
 }
 
 async function claimJob(jobId) {
@@ -334,18 +341,55 @@ async function executeJob(job) {
     if (!stored?.path) continue;
     referenceImages.push({ reference, imagePart: await downloadStoredImage(stored) });
   }
-  const prompt = buildPrompt(job);
+
+  const { prompt, templateName, promptVersion, promptPreview } = buildPrompt(job);
   const outputType = job.output_type === 'text' ? 'text' : 'image';
-  const referenceParts = referenceImages.flatMap((item, index) => [
-    { text: `REFERENCE_IMAGE_${index + 1}: ${normalizeText(item.reference?.type || 'reference', 80)} ${normalizeText(item.reference?.note || '', 400)}`.trim() },
-    item.imagePart,
-  ]);
+
+  // ── Reference image role separation (FAZ Q1.2) ────────────────
+  // Primary image = architectural ground truth.
+  // Reference images = style/material/atmosphere inspiration ONLY.
+  // Build parts array with explicit role labeling so Gemini understands the hierarchy.
+  const hasReferences = referenceImages.length > 0;
+  const parts = [];
+
+  if (outputType === 'text') {
+    // Text analysis: simple image + prompt
+    parts.push(primaryImage);
+    parts.push({ text: prompt });
+  } else {
+    // Image generation: primary → role instruction → references → prompt
+    parts.push({
+      text: 'PRIMARY_IMAGE (architectural ground truth — defines ALL geometry, perspective, camera framing, spatial layout and architectural structure):',
+    });
+    parts.push(primaryImage);
+
+    if (hasReferences) {
+      parts.push({
+        text: 'REFERENCE_IMAGES below are STYLE/MATERIAL/ATMOSPHERE INSPIRATION ONLY. Extract material palettes, lighting moods and color tones from them. Do NOT copy their geometry, camera angle, composition, or architectural elements. Blend reference style INTO the primary scene without redesigning it. The PRIMARY image always wins when there is a conflict.',
+      });
+    }
+
+    for (let i = 0; i < referenceImages.length; i += 1) {
+      const item = referenceImages[i];
+      const refType = normalizeText(item.reference?.type || 'style', 80);
+      const refNote = normalizeText(item.reference?.note || '', 400);
+      parts.push({
+        text: `REFERENCE_IMAGE_${i + 1} (${refType} reference — style/material/atmosphere ONLY, do not copy geometry or architecture)${refNote ? ` | Note: ${refNote}` : ''}`,
+      });
+      parts.push(item.imagePart);
+    }
+
+    parts.push({ text: prompt });
+  }
+
   const payload = {
-    contents: [{ role: 'user', parts: [primaryImage, ...referenceParts, { text: prompt }] }],
+    contents: [{ role: 'user', parts }],
   };
   if (outputType === 'image') payload.generationConfig = { responseModalities: ['IMAGE', 'TEXT'] };
 
-  const response = await generateWithFallback({ outputType, payload, maxProviderRetries: MAX_PROVIDER_RETRIES });
+  const response = await generateWithFallback({ outputType, payload, toolId: job.tool_id });
+
+  // ── Audit log: prompt + model versioning info ──────────────────
   logStructured('info', 'Gemini call completed', {
     jobId: job.id,
     userId: job.user_id,
@@ -353,10 +397,29 @@ async function executeJob(job) {
     attempt: Number(job.attempt_count || 0),
     outputType,
     model: response.model,
-    maxProviderRetries: MAX_PROVIDER_RETRIES,
+    modelUsed: response.modelMetadata?.modelUsed || response.model,
+    modelRole: response.modelMetadata?.modelRole || null,
+    modelPurpose: response.modelMetadata?.modelPurpose || null,
+    modelConfigVersion: response.modelMetadata?.modelConfigVersion || null,
+    promptTemplateName: templateName,
+    promptVersion,
+    promptPreview,
+    referenceCount: referenceImages.length,
+    ...(metadata.promptContract ? { promptContract: metadata.promptContract } : {}),
   });
+
   if (outputType === 'text') {
-    return { outputType, model: response.model, resultText: extractText(response.data), resultUrl: null };
+    return {
+      outputType,
+      model: response.model,
+      resultText: extractText(response.data),
+      resultUrl: null,
+      // Pass through prompt + model audit info for metadata
+      promptTemplateName: templateName,
+      promptVersion,
+      promptPreview,
+      modelMetadata: response.modelMetadata || null,
+    };
   }
 
   const outputImage = await storeOutputImage({
@@ -365,7 +428,18 @@ async function executeJob(job) {
     toolId: job.tool_id,
     inlineData: extractImage(response.data),
   });
-  return { outputType, model: response.model, resultText: null, resultUrl: outputImage.url, outputImage };
+  return {
+    outputType,
+    model: response.model,
+    resultText: null,
+    resultUrl: outputImage.url,
+    outputImage,
+    // Pass through prompt + model audit info for metadata
+    promptTemplateName: templateName,
+    promptVersion,
+    promptPreview,
+    modelMetadata: response.modelMetadata || null,
+  };
 }
 
 async function processAiStudioJob(jobId) {
@@ -408,7 +482,18 @@ async function processAiStudioJob(jobId) {
     });
     providerStarted = true;
     const result = await executeJob({ ...job, billing });
-    const nextMetadata = { ...(job.metadata || {}), result: { model: result.model, outputImage: result.outputImage || null } };
+    const nextMetadata = {
+      ...(job.metadata || {}),
+      result: { model: result.model, outputImage: result.outputImage || null, modelMetadata: result.modelMetadata || null },
+      // ── Prompt audit trail ──────────────────────────────────────
+      prompt: {
+        version: result.promptVersion || PROMPT_VERSION,
+        templateName: result.promptTemplateName || 'unknown',
+        preview: result.promptPreview || '',
+      },
+      // ── Model audit trail ───────────────────────────────────────
+      model: result.modelMetadata || null,
+    };
     await supabase.from('ai_studio_jobs').update({
       status: 'completed',
       result_url: result.resultUrl,

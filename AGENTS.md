@@ -10,8 +10,8 @@ This is **not a monorepo**. There is no root `package.json`, workspace config, o
 | `ArchilyaMobil/` | Expo 55 | React Native 0.83, NativeWind, Firebase | Mobile app (iOS/Android) |
 | `ArchilyaWebBackend/` | Firebase Functions | Node 20, plain JS (CommonJS) | Cloud Functions backend (11 domains) |
 | `ArchilyaLauncher/` | Electron 40 | React 19, Vite 7, Tailwind 4 | Game launcher + Pixel Streaming |
-| `ArchilyaAdminPanel/` | Electron 28 | React 18, Vite 5, Tailwind 3 | B2B admin panel (legacy stack) |
-| `Mimerra/` | Static HTML | — | AI prototype outputs (439 files: 32 saved SPA snapshots + duplicated assets). NOT source code. See security notes below. |
+| `ArchilyaAdminPanel/` | Next.js 16 | React 19, Tailwind 4, Supabase, TS/TSX | B2B admin panel (migrated from Electron) |
+| `Mimerra/` | Static HTML | — | *(removed from repo — existed as AI prototype outputs)* |
 | `ArchilyaSkills/` | Markdown docs | — | Build guides and sign-in fix docs |
 | `docs/` | Markdown docs | — | RevenueCat / Play Console setup guides |
 | `src/` | Orphaned TSX | — | Single dead file (`renderer/components/FilePreviewContent.tsx`); no `package.json` |
@@ -24,18 +24,17 @@ This is **not a monorepo**. There is no root `package.json`, workspace config, o
 - **Product copy is Turkish-first**. Routes use Turkish slugs (e.g., `/giris`, `/kayit`, `/ayarlar`, `/cop-kutusu`).
 - **No root-level CI or test runner**. Only `ArchilyaWebPanel` has a GitHub Actions workflow.
 
-## Firebase Architecture (3 configs, 2 codebases)
-All target project `nng-toma` (see `.firebaserc` in WebPanel and WebBackend).
+## Firebase Architecture (2 configs, 1 codebase)
+All target project `nng-toma` (see `.firebaserc` in WebBackend).
 
 | Config Location | Codebase | What it deploys |
-|---|---|---|
-| `ArchilyaWebPanel/firebase.json` | `panel` | Hosting (root `.`), Functions (`functions/`), Firestore rules/indexes, emulators |
+|---|---|---|---|
 | `ArchilyaWebBackend/firebase.json` | `backend` | Functions (`functions/`), emulators |
 | `ArchilyaLauncher/firebase.json` | *(none)* | Firestore rules only |
 
-- `ArchilyaWebPanel/functions/` is a **small standalone TypeScript sub-project** (compiles `src/` → `lib/`, single scheduled cleanup function). It has its own `package.json` and `tsconfig.json`.
+- Note: `ArchilyaWebPanel/functions/` **no longer exists** — the Firebase Functions sub-project was removed from WebPanel. WebPanel is now Vercel-deployed with Supabase-only backend.
 - `ArchilyaWebBackend/functions/` is the **large functions runtime** with 11 domain modules (`src/ai-jobs`, `src/credits`, `src/workspaces`, `src/projects`, `src/payments`, `src/notifications`, `src/ai-legacy`, `src/r2-admin`, `src/r2-user`, `src/contact`, `src/legacy`). It monkey-patches `firebase-functions/v2/https` and `v2/tasks` at startup to wrap every handler with Sentry.
-- WebPanel's root `tsconfig.json` explicitly `"exclude": ["functions"]` so the sub-project is type-checked separately.
+- WebPanel's root `tsconfig.json` explicitly `"exclude": ["functions"]` so the former sub-project wasn't type-checked with the main app.
 
 ## CI & Automation
 - **Only `ArchilyaWebPanel/.github/workflows/ci.yml` exists**. It runs on `push`/`pull_request` to `main`.
@@ -56,7 +55,6 @@ All target project `nng-toma` (see `.firebaserc` in WebPanel and WebBackend).
   - E2E UI: `npm run test:e2e:ui`.
 - **Build**: `npm run build`.
 - **Lint**: `eslint` (flat config `.mjs` for Next.js 16; ignores `qa/`, `e2e/`, `playwright.config.*`).
-- **Functions sub-project**: `cd functions && npm run build` compiles TS to `lib/`. `npm run test` runs Vitest inside `functions/`.
 - **Gotcha**: Runs **Next.js 16.2.4**, which has breaking API changes vs. standard training data. Read `node_modules/next/dist/docs/` and heed deprecation notices before writing code. Also see `ArchilyaWebPanel/AGENTS.md`.
 - **Gotcha**: `next.config.ts` defines **CSP headers** and **redirects** (`/ai-studyo` → `/ai-studio`, `/gizlilik-politikasi` → `/gizlilik`). Adding new external domains or image sources requires updating the CSP `connect-src`/`img-src` directives and `images.remotePatterns`.
 
@@ -65,7 +63,7 @@ All target project `nng-toma` (see `.firebaserc` in WebPanel and WebBackend).
 - **Dev**: `npm run dev` → port 5174.
 - **Build**: `npm run build`.
 - **Lint**: `npm run lint` (flat config for JS/JSX + React Hooks/Refresh; ignores `dist/`).
-- **Gotcha**: Pure JS/JSX (no TypeScript). Tailwind 3 with PostCSS + autoprefixer. Uses `react-router-dom` v7. No project-level AGENTS.md exists.
+- **Gotcha**: Pure JS/JSX (no TypeScript). Tailwind 3 with PostCSS + autoprefixer. Uses `react-router-dom` v7.
 - **Config note**: `package.json` sets `"type": "module"`, so `postcss.config.cjs` is intentionally CommonJS (`module.exports`). `tailwind.config.js` uses ESM `export default`.
 - **Gotcha**: `.gitignore` only contains `.vercel` — **it does not ignore `.env`**. Secret leak risk if `.env` is accidentally staged.
 
@@ -107,42 +105,39 @@ All target project `nng-toma` (see `.firebaserc` in WebPanel and WebBackend).
 - **Gotcha**: `.gitignore` does **not** include `.env` (only `*.local`). The file at `ArchilyaLauncher/.env` contains a live Google OAuth client secret and Firebase API key — it **will be committed** on `git add .`.
 
 ### ArchilyaAdminPanel
-- **Entry**: `src/renderer/main.tsx` / `electron/main.ts`.
-- **Dev**: `npm run dev` (3 concurrent processes: Vite HMR + `tsc -w` for electron main + `wait-on` then Electron launch).
-- **Build**: `npm run dist` (runs `tsc` renderer type-check → `vite build` → `tsc -p electron/tsconfig.json` main compile → `electron-builder`).
-- **Lint**: `npm run lint` runs `eslint .`, but **no ESLint config file exists** at the project root. It may fail or fall back to defaults.
+- **Entry**: `src/app/layout.tsx` (root layout with Montserrat/Cormorant fonts, globals.css).
+- **Dev**: `npm run dev` → port 3000. Also `dev:turbo`, `dev:webpack`.
+- **Build**: `npm run build`.
+- **Lint**: `eslint` (flat config `.mjs` for Next.js 16).
 - **Gotchas**:
-  - Older stack than Launcher (React 18, Electron 28, Firebase 10).
+  - **Migrated from Electron to Next.js 16** — older root `AGENTS.md` entries describing it as "Electron 28 / Vite 5" are stale. Current stack: Next.js 16.2.6, React 19.2.4, Tailwind v4, Supabase.
+  - Same core stack as `ArchilyaWebPanel` but stripped down (no Sentry, no i18n, no CSP).
   - No test framework configured at all.
-  - No auto-update publisher configured.
-  - **No `.gitignore` exists at all** — any file added here is at risk of accidental staging.
-  - Electron main process uses CommonJS (`module: commonjs` in `electron/tsconfig.json`), unlike Launcher's NodeNext.
+  - `eslint.config.mjs` exists and works (contrary to older root AGENTS.md claims).
+  - `.gitignore` exists and properly excludes `.env`, `.env*.local`, `node_modules`, `.next/` (contrary to older claims).
 
 ## Cross-Cutting Gotchas
-- **Tailwind version split**: WebPanel and Launcher use Tailwind v4 (`@tailwindcss/postcss`). WebSitesi, Mobil, and AdminPanel use Tailwind v3. Do not copy PostCSS configs between them.
+- **Tailwind version split**: WebPanel, Launcher, and AdminPanel use Tailwind v4 (`@tailwindcss/postcss`). WebSitesi and Mobil use Tailwind v3. Do not copy PostCSS configs between them.
 - **No shared lint/prettier config** at root. Each project has its own ESLint flat config.
 - **`src/` at repo root is orphaned** — it contains a single file (`renderer/components/FilePreviewContent.tsx`) and has no `package.json`. An identical, also-unreferenced copy exists at `ArchilyaLauncher/src/renderer/components/FilePreviewContent.tsx`. Both are dead code.
-- **`Mimerra/` is not source code** — it contains 32 static HTML files saved from `mimerra.com/design-studio/*` via browser "Save Page As" (Web Archive format). Each HTML is a full React 19 SPA snapshot with a paired `_files/` subdirectory (11–36 duplicated assets each: Vite bundle, CSS, Google Fonts, FB Pixel, Cloudflare beacon). ~439 files total, largely byte-identical duplicates. Do not attempt to build or lint.
-  - **🔴 Exposed secrets in `Mimerra_AI_Analiz_Raporu.html`**: Hardcoded Firebase config (`muttimoai` project — different from main `nng-toma`): `apiKey: AIzaSyAqgHhK_srZTPglM4x6tIiwRet1JFMU2VE`, `storageBucket: muttimoai.firebasestorage.app`, and `GEMINI_API_KEY` env var reference.
-  - **🔴 Exposed tracking tokens in ALL 30+ HTML files**: Cloudflare Web Analytics beacon (`c67dc40465994d38bfc018472adb47a5`) and Facebook Pixel ID (`726461563623510`).
-  - **⚠️ External CDN dependency**: Import map loads React 19, Firebase 12, Three.js, etc. from `aistudiocdn.com`. Snapshots are NOT self-contained and require network access.
-  - **⚠️ Three.js version conflict**: Import map declares `three@^0.166.0` and `three/@^0.181.0` simultaneously.
-  - **Large file**: `Mimerra_Render_Sonuc.html` is 8.4 MB (JSON-encoded HTML render export).
-  - **Tooling artifacts**: `.playwright-mcp/` directory contains Playwright DOM snapshots and console logs — safe to delete.
-  - **File naming**: All HTML files use the pattern `{TurkishToolName} Mimerra.html` with corresponding `{TurkishToolName} Mimerra_files/` dir.
+- **`Mimerra/` has been removed from the repo** (it previously contained 32 static HTML snapshots and exposed Firebase secrets/tracking tokens). No longer present on disk.
 - **`.env` files exist in 4 projects** (WebPanel, Launcher, WebBackend/functions, Mobil).
   - **WebPanel, Mobil, WebBackend/functions** correctly gitignore `.env` files.
   - **🔴 CRITICAL — `ArchilyaLauncher/.env` is NOT gitignored** and contains a real Google OAuth client secret + Firebase API key. The `.gitignore` only has `*.local` (covers `.env.local`, not `.env`). This file will be committed on `git add .`.
   - **⚠️ `ArchilyaWebSitesi/.gitignore` only ignores `.vercel`** — does not ignore `.env`. No `.env` file exists there yet, but any future file would be at risk.
-  - **⚠️ `ArchilyaAdminPanel/` has no `.gitignore` at all** — nothing is protected from accidental staging.
-  - **Root has no `.gitignore`** either, though no source code lives there.
+  - **⚠️ `ArchilyaAdminPanel/` has a `.gitignore`** (covers `.env`, `.env*.local`, `node_modules`, `.next/`) — earlier "no .gitignore" claim was stale.
+  - **Root has a `.gitignore`** (covers node_modules, dist, build, .env) — earlier "no .gitignore" claim was stale.
 - **No Docker** for the main apps. Only `ArchilyaLauncher/SignallingWebServer/` has a Dockerfile (Epic Pixel Streaming).
 - **No repo-wide config files** (`.cursorrules`, `opencode.json`, `.github/copilot-instructions.md`). Only `ArchilyaWebPanel/CLAUDE.md` exists and it just references `@AGENTS.md`.
 
 ## Child Instruction Files
 - `ArchilyaWebPanel/AGENTS.md` — Next.js 16 warnings
-- `ArchilyaMobil/AGENTS.md` — Full mobile KB (note: its tailwind `src/components/` claim is stale)
+- `ArchilyaWebSitesi/AGENTS.md` — Vite SPA (JS/JSX, Tailwind v3)
+- `ArchilyaMobil/AGENTS.md` — Full mobile KB
 - `ArchilyaMobil/app/AGENTS.md` — Expo Router routes
 - `ArchilyaMobil/src/AGENTS.md` — Hooks / services
 - `ArchilyaMobil/android/AGENTS.md` — Native Android
-- `ArchilyaWebBackend/functions/AGENTS.md` — Cloud Functions
+- `ArchilyaLauncher/AGENTS.md` — Electron 40 launcher
+- `ArchilyaWebBackend/AGENTS.md` — Firebase Functions overview
+- `ArchilyaWebBackend/functions/AGENTS.md` — Cloud Functions runtime
+- `ArchilyaAdminPanel/AGENTS.md` — Next.js 16 admin panel

@@ -160,6 +160,8 @@ export function useRealtimeDoc<T>({
   }, [enabled, id, table, mapRow, updateData]);
 
   // Effect: polling fallback for environments where Realtime does not deliver updates.
+  // NOTE: `data` is intentionally omitted from deps — we read dataRef.current inside
+  // the poll callback to avoid re-scheduling the polling loop on every data change.
   useEffect(() => {
     if (!enabled || !id || !shouldPoll || !shouldPoll(dataRef.current)) return;
 
@@ -191,7 +193,7 @@ export function useRealtimeDoc<T>({
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [enabled, id, shouldPoll, pollingIntervalMs, data]);
+  }, [enabled, id, shouldPoll, pollingIntervalMs]);
 
   return { data, loading, error };
 }

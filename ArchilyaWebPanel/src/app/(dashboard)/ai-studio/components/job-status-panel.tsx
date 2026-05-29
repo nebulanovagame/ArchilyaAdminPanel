@@ -1,7 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
+import { fadeInDown } from "../lib/animation-variants";
 import { useTranslations } from "next-intl";
 import type { ToolConfig } from "../types";
 
@@ -16,6 +17,7 @@ interface JobStatusPanelProps {
   };
   submittingJob: boolean;
   jobFailureMessage: string | null;
+  onRetry?: () => void;
 }
 
 function getGenerationLoadingMessage(tool: ToolConfig, toolLabel: string, t: ReturnType<typeof useTranslations>) {
@@ -26,12 +28,19 @@ function getGenerationLoadingMessage(tool: ToolConfig, toolLabel: string, t: Ret
   return t("dashboard.aiStudio.preparingSeconds", { tool: toolLabel });
 }
 
+const statusIconVariants = {
+  initial: { scale: 0.8, opacity: 0 },
+  animate: { scale: 1, opacity: 1, transition: { duration: 0.2 } },
+  exit: { scale: 0.8, opacity: 0, transition: { duration: 0.15 } },
+};
+
 export default function JobStatusPanel({
   activeJobId,
   visibleTool,
   activeJob,
   submittingJob,
   jobFailureMessage,
+  onRetry,
 }: JobStatusPanelProps) {
   const t = useTranslations();
   if (!activeJobId || !visibleTool) return null;
@@ -61,8 +70,9 @@ export default function JobStatusPanel({
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      variants={fadeInDown}
+      initial="hidden"
+      animate="visible"
       className={`flex items-start gap-3 px-4 py-3 rounded-sm border text-xs font-sans ${
         isFailed || docMissing
           ? "bg-red-400/5 border-red-400/20 text-red-300"
@@ -71,18 +81,39 @@ export default function JobStatusPanel({
             : "bg-primary/5 border-primary/20 text-primary"
       }`}
     >
-      {isFailed || docMissing ? (
-        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-      ) : isCompleted ? (
-        <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
-      ) : (
-        <Loader2 className="w-4 h-4 mt-0.5 flex-shrink-0 animate-spin" />
-      )}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={isFailed || docMissing ? "error" : isCompleted ? "success" : "loading"}
+          variants={statusIconVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          className="mt-0.5 flex-shrink-0"
+        >
+          {isFailed || docMissing ? (
+            <AlertCircle className="w-4 h-4" />
+          ) : isCompleted ? (
+            <CheckCircle2 className="w-4 h-4" />
+          ) : (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          )}
+        </motion.div>
+      </AnimatePresence>
       <div className="min-w-0 flex-1">
         <p>{message}</p>
         <p className="mt-1 text-[10px] opacity-80 break-all">
-          Job ID: {activeJobId} · {t("dashboard.aiStudio.jobTracking")}
+          {activeJobId} · {t("dashboard.aiStudio.jobTracking")}
         </p>
+        {(isFailed || docMissing) && onRetry ? (
+          <button
+            type="button"
+            onClick={() => onRetry?.()}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 mt-2 rounded-sm border border-red-400/25 bg-red-400/8 text-[10px] font-bold uppercase tracking-wider text-red-300 hover:border-red-400/40 hover:bg-red-400/12 transition-colors"
+          >
+            <RefreshCw className="h-3 w-3" />
+            <span>Tekrar Dene</span>
+          </button>
+        ) : null}
       </div>
     </motion.div>
   );

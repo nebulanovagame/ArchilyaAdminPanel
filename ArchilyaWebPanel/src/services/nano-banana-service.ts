@@ -113,6 +113,8 @@ type QueueAiStudioJobInput = {
   sceneEditMode?: string;
   generationVariant?: string;
   references?: SceneReferenceInput[];
+  scenePreserveAreas?: string[];
+  promptContract?: unknown;
 };
 
 type CreateAiStudioJobResult = {
@@ -352,6 +354,17 @@ function buildOptimizationEncodeVariants(profile: string) {
   ] satisfies Array<{ mimeType: string; quality?: number }>;
 }
 
+/** Yield to the browser event loop so the UI stays responsive during heavy canvas work. */
+function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      window.requestIdleCallback(() => resolve(), { timeout: 50 });
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
 async function optimizeImageBlob(blob: Blob, options: { profile?: string; targetBytes?: number; maxLongEdge?: number } = {}) {
   try {
     const profile = normalizeImageProfile(options.profile);
@@ -365,10 +378,14 @@ async function optimizeImageBlob(blob: Blob, options: { profile?: string; target
     let bestBlob = blob;
 
     for (const longEdge of longEdgeSteps) {
+      // Yield before each canvas resize to keep the UI responsive
+      await yieldToMain();
       const canvas = createResizedCanvas(image, longEdge);
       if (!canvas) continue;
 
       for (const variant of encodeVariants) {
+        // Yield before each encode to prevent blocking the main thread
+        await yieldToMain();
         const candidateBlob = await canvasToBlob(canvas, variant.mimeType, variant.quality);
 
         if (candidateBlob.size < bestBlob.size) {
@@ -484,10 +501,13 @@ export async function queueAiStudioJob({
   sceneEditMode = "scene-compose",
   generationVariant = "default",
   references = [],
+  scenePreserveAreas = [],
+  promptContract,
 }: QueueAiStudioJobInput): Promise<CreateAiStudioJobResult> {
   const normalizedExtraNote = String(extraNote || "").trim();
   const normalizedStyle = String(style || "modern").trim() || "modern";
   const normalizedGenerationVariant = String(generationVariant || "default").trim() || "default";
+  const normalizedScenePreserveAreas = Array.isArray(scenePreserveAreas) ? scenePreserveAreas : [];
 
   let imagePart: InlineImagePart | null = null;
   let workflow = "";
@@ -550,6 +570,98 @@ export async function queueAiStudioJob({
     generationVariant: normalizedGenerationVariant,
     imageUrls: imageUrl ? [String(imageUrl).trim()].filter(Boolean) : [],
     referenceImages,
+    scenePreserveAreas: toolId === "sceneedit" ? normalizedScenePreserveAreas : [],
+    promptContract: promptContract || undefined,
+  }, path);
+
+  const jobId = String(result?.jobId || result?.historyId || result?.id || "").trim();
+  if (!jobId) {
+    throw new Error("AI işi oluşturuldu ancak geçerli bir jobId dönmedi.");
+  }
+
+  return { jobId };
+}
+
+export async function queueAiStudioJobV3({
+  toolId,
+  imageFile,
+  imageUrl,
+  style = "modern",
+  extraNote = "",
+  sceneEditMode = "scene-compose",
+  generationVariant = "default",
+  references = [],
+  scenePreserveAreas = [],
+  promptContract,
+}: QueueAiStudioJobInput & { promptContract?: Record<string, unknown> }): Promise<CreateAiStudioJobResult> {
+  const normalizedExtraNote = String(extraNote || "").trim();
+  const normalizedStyle = String(style || "modern").trim() || "modern";
+  const normalizedGenerationVariant = String(generationVariant || "default").trim() || "default";
+  const normalizedScenePreserveAreas = Array.isArray(scenePreserveAreas) ? scenePreserveAreas : [];
+
+  let imagePart: InlineImagePart | null = null;
+  let workflow = "";
+  const referenceImages: Array<{ type: string; label: string; note: string; imagePart: InlineImagePart }> = [];
+
+  if (toolId === "analysis") {
+    imagePart = await prepareImagePart(imageFile, imageUrl);
+    if (!imagePart) throw new Error("Analiz için görsel zorunludur.");
+  } else if (toolId === "img2img") {
+    imagePart = await prepareImagePart(imageFile, imageUrl);
+    if (!imagePart) throw new Error("Stil dönüşümü için görsel zorunludur.");
+  } else if (toolId === "enhance") {
+    imagePart = await prepareImagePart(imageFile, imageUrl);
+    if (!imagePart) throw new Error("Render iyileştirme için görsel zorunludur.");
+  } else if (toolId === "plancolor") {
+    imagePart = await prepareImagePart(imageFile, imageUrl, { profile: "plan" });
+    if (!imagePart) throw new Error("Plan boyama için görsel zorunludur.");
+  } else {
+    imagePart = await prepareImagePart(imageFile, imageUrl, SCENE_PRIMARY_IMAGE_OPTIONS);
+    if (!imagePart) throw new Error("Sahne düzenleme için ana sahne görseli zorunludur.");
+
+    const normalizedInput = Array.isArray(references) ? references.slice(0, SCENE_EDIT_MAX_REFERENCES) : [];
+    if (!normalizedInput.length) {
+      throw new Error("Sahne düzenleme için en az bir referans görsel ekleyin.");
+    }
+
+    for (let i = 0; i < normalizedInput.length; i += 1) {
+      const reference = normalizeSceneReference(normalizedInput[i], i);
+      const referenceImagePart = await prepareImagePart(reference.file || null, reference.url || "", SCENE_REFERENCE_IMAGE_OPTIONS);
+
+      if (!referenceImagePart) {
+        throw new Error(`Referans #${i + 1} için görsel seçin.`);
+      }
+
+      referenceImages.push({
+        type: reference.type,
+        label: reference.label,
+        note: reference.note,
+        imagePart: referenceImagePart,
+      });
+    }
+
+    const totalInlineLength = countTotalInlineLength(imagePart, referenceImages);
+    if (totalInlineLength > SCENE_EDIT_TOTAL_BASE64_LENGTH) {
+      throw new Error("Toplam referans görselleri çok büyük. Daha az referans ekleyin veya görselleri küçültün.");
+    }
+
+    workflow = normalizeSceneEditMode(sceneEditMode);
+  }
+
+  const isFluxTool = ["img2img", "enhance", "sceneedit"].includes(toolId);
+  const path = isFluxTool ? "/api/ai-studio/flux-job" : "/api/ai-studio/jobs";
+
+  const result = await callCreateAiStudioJob({
+    toolId,
+    imagePart,
+    style: toolId === "img2img" || toolId === "plancolor" ? normalizedStyle : "",
+    sceneEditMode: toolId === "sceneedit" ? workflow : "",
+    extraNote: normalizedExtraNote,
+    promptContract: promptContract || undefined,
+    generationVariant: normalizedGenerationVariant,
+    imageUrls: imageUrl ? [String(imageUrl).trim()].filter(Boolean) : [],
+    referenceImages,
+    scenePreserveAreas: toolId === "sceneedit" ? normalizedScenePreserveAreas : [],
   }, path);
 
   const jobId = String(result?.jobId || result?.historyId || result?.id || "").trim();

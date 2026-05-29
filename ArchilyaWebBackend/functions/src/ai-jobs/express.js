@@ -70,6 +70,7 @@ function normalizeJobPayload(data) {
     rawReferenceImages: Array.isArray(data?.referenceImages) ? data.referenceImages.slice(0, 4) : [],
     referenceImages: references,
     creditCost: getToolCost(toolId),
+    promptContract: data?.promptContract && typeof data.promptContract === 'object' ? data.promptContract : null,
   };
 }
 
@@ -135,6 +136,8 @@ exports.createAiStudioJobSecure = onCall({ region: 'europe-west1' }, async (requ
       referenceImages: storedReferenceImages,
     },
     referenceCount: payload.referenceImages.length,
+    promptContract: payload.promptContract,
+    promptVersion: payload.promptContract ? '3.0.0' : '2.0.0',
     progressMessage: 'AI isi Supabase kuyruğuna alindi.',
     billing: {
       amount: payload.creditCost,
@@ -152,6 +155,8 @@ exports.createAiStudioJobSecure = onCall({ region: 'europe-west1' }, async (requ
     tool_id: payload.toolId,
     output_type: payload.outputType,
     credit_cost: payload.creditCost,
+    prompt_version: metadata.promptVersion,
+    prompt_contract: payload.promptContract || null,
     metadata,
     billing: metadata.billing,
     queued_at: timestamp,

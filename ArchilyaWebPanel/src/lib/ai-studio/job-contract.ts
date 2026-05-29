@@ -52,6 +52,10 @@ export type AiStudioJobDocument = {
   billing: unknown;
   metadata: Record<string, unknown>;
   feedback: AiStudioJobFeedback;
+  promptVersion: string | null;
+  contractSnapshot: Record<string, unknown> | null;
+  compiledPrompt: Record<string, unknown> | null;
+  providerAdapter: string | null;
 };
 
 export const INITIAL_AI_STUDIO_JOB: AiStudioJobDocument = {
@@ -94,6 +98,10 @@ export const INITIAL_AI_STUDIO_JOB: AiStudioJobDocument = {
   billing: null,
   metadata: {},
   feedback: null,
+  promptVersion: null,
+  contractSnapshot: null,
+  compiledPrompt: null,
+  providerAdapter: null,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -214,6 +222,10 @@ export function mapAiStudioJobSnapshot(snapshot: { id: string; data: () => Recor
   const outputType = normalizeOutputType(data.output_type, normalizeOutputType(data.outputType, imageUrl ? "image" : resultText ? "text" : normalizeOutputType(request.output_type, normalizeOutputType(request.outputType))));
   const errorMessage = readFirstString(data.error_message, error.message, data.errorMessage);
   const uid = readFirstString(data.user_id, data.userId, data.uid, metadata.uid);
+  const promptVersion = readString(data.promptVersion) || readString(data.prompt_version) || readString(metadata.promptVersion) || null;
+  const contractSnapshot = isRecord(data.contractSnapshot) ? data.contractSnapshot : isRecord(data.contract_snapshot) ? data.contract_snapshot : null;
+  const compiledPrompt = isRecord(data.compiledPrompt) ? data.compiledPrompt : isRecord(data.compiled_prompt) ? data.compiled_prompt : null;
+  const providerAdapter = readString(data.providerAdapter) || readString(data.provider_adapter) || readString(metadata.providerAdapter) || null;
 
   return {
     id: snapshot.id,
@@ -258,5 +270,9 @@ export function mapAiStudioJobSnapshot(snapshot: { id: string; data: () => Recor
     billing: data.billing ?? null,
     metadata,
     feedback: data.feedback === "positive" ? "positive" : data.feedback === "negative" ? "negative" : null,
+    promptVersion,
+    contractSnapshot,
+    compiledPrompt,
+    providerAdapter,
   } satisfies AiStudioJobDocument;
 }

@@ -62,4 +62,4 @@ npm run migrate:storage   # Migrate file storage to Supabase
 - `_splitter.cjs` / `_detect-exports.cjs` / `_add-imports.cjs` are legacy migration scripts that reference `C:/NNG/proje61/archilya-web/` (old path)
 - The `functions/package.json` `main` points to `server.js` (Express), but Firebase deploys `index.js`
 - Node 20 runtime, Express 5 (latest)
-- Two Firebase functions codebases exist repo-wide: this one (`backend`) and `ArchilyaWebPanel/functions/` (`panel`) — both deploy to `nng-toma`
+- The only active Firebase functions codebase is `backend` (this repo). The `ArchilyaWebPanel/functions/` codebase (`panel`) was removed; WebPanel is now Vercel-deployed with Supabase-only backend.

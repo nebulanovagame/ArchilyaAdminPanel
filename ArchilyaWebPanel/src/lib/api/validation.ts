@@ -58,9 +58,12 @@ export const aiStudioJobBodySchema = z.object({
   style: z.string().max(128).optional(),
   sceneEditMode: z.string().max(128).optional(),
   extraNote: z.string().max(5000).optional(),
+  // V3 prompt contract — optional, sent when PROMPT_ENGINE_V3_ENABLED
+  promptContract: z.record(z.string(), z.unknown()).optional(),
   generationVariant: z.string().max(128).optional(),
   imageUrls: z.array(z.string().max(2048)).optional(),
   referenceImages: z.array(z.unknown()).optional(),
+  scenePreserveAreas: z.array(z.string().max(128)).optional(),
 });
 
 export const brandingUpdateBodySchema = z.object({

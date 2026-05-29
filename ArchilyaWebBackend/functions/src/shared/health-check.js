@@ -14,6 +14,7 @@
 
 const { supabase } = require('./supabase-helpers');
 const env = require('../config/env');
+const { getGeminiConfigSummary } = require('../ai-jobs/gemini');
 
 // ── Version ───────────────────────────────────────────────────────────────────
 const PACKAGE_VERSION = process.env.npm_package_version || 'unknown';
@@ -37,8 +38,16 @@ async function checkStorage() {
 }
 
 function checkGeminiConfig() {
-  const keyExists = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length >= 10);
-  return { status: keyExists ? 'configured' : 'missing', detail: null };
+  const config = getGeminiConfigSummary();
+  return {
+    status: config.keyConfigured ? 'configured' : 'missing',
+    detail: config.keyConfigured ? null : 'GEMINI_API_KEY missing or too short',
+    imageModel: config.imageModel,
+    imageFallback: config.imageFallback,
+    textModel: config.textModel,
+    textFallback: config.textFallback,
+    configVersion: config.configVersion,
+  };
 }
 
 function checkR2Config() {
