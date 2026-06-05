@@ -56,6 +56,7 @@ export const MOCK_USERS: UserRecord[] = Array.from({ length: 25 }, (_, i) => ({
   createdAt: new Date(Date.now() - (i * 86400000)).toISOString(),
   lastSignInAt: i % 3 === 0 ? null : new Date(Date.now() - (i * 3600000)).toISOString(),
   workspaceCount: Math.floor(Math.random() * 5),
+  credits: Math.floor(Math.random() * 50000),
   totalCreditsUsed: Math.floor(Math.random() * 100000),
 })) as UserRecord[];
 

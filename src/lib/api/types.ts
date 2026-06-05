@@ -32,6 +32,9 @@ export type UserRecord = {
   createdAt: string;
   lastSignInAt: string | null;
   workspaceCount: number;
+  /** Mevcut kredi bakiyesi (profiles.credits) */
+  credits: number;
+  /** Toplam harcanan kredi (profiles.total_spent) */
   totalCreditsUsed: number;
 };
 
