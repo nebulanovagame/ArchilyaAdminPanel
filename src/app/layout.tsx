@@ -21,6 +21,10 @@ const cormorant = Cormorant_Garamond({
 export const metadata: Metadata = {
   title: "Archilya | Admin Panel",
   description: "Archilya Admin Panel",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export const viewport: Viewport = {
