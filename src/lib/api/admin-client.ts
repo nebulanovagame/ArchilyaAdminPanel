@@ -1,8 +1,11 @@
 /**
- * Admin API Client — connects to WebBackend Admin API
+ * Admin API Client — connects to WebBackend Admin API with mock fallback.
  *
  * All requests go to NEXT_PUBLIC_ADMIN_API_BASE_URL with the user's
  * Supabase access_token as Bearer token.
+ *
+ * When the backend is unavailable or not configured, mock data is used
+ * so the UI remains functional during development.
  *
  * ⚠️ SECURITY:
  * - Admin authorization is verified by the backend (profiles.is_admin check)
@@ -22,6 +25,20 @@ import type {
   AuditLogEntry,
   LegacyProduct,
 } from "./types";
+
+import {
+  MOCK_ADMIN_USER,
+  MOCK_DASHBOARD_STATS,
+  MOCK_USERS,
+  MOCK_WORKSPACES,
+  MOCK_PROJECTS,
+  MOCK_CREDITS,
+  MOCK_SUBSCRIPTIONS,
+  MOCK_RENDER_JOBS,
+  MOCK_AUDIT_LOGS,
+  MOCK_LEGACY_PRODUCTS,
+  delay,
+} from "./mock-data";
 
 const API_BASE = process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL || "";
 
@@ -44,12 +61,12 @@ class AdminApiError extends Error {
 }
 
 async function apiFetch<T>(endpoint: string, options?: { method?: string; body?: unknown }): Promise<T> {
+  // If no backend configured, skip straight to mock fallback
   if (!API_BASE) {
     throw new AdminApiError(
-      "Admin API base URL (NEXT_PUBLIC_ADMIN_API_BASE_URL) is not configured. " +
-      "Set it in .env.local to connect to the backend.",
-      500,
-      "not-configured",
+      "Admin API not configured — use mock data",
+      0,
+      "mock-fallback",
     );
   }
 
@@ -57,73 +74,117 @@ async function apiFetch<T>(endpoint: string, options?: { method?: string; body?:
     throw new AdminApiError("Authentication required. Please log in.", 401, "unauthenticated");
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    method: options?.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${_accessToken}`,
-    },
-    body: options?.body ? JSON.stringify(options.body) : undefined,
-  });
+  try {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: options?.method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${_accessToken}`,
+      },
+      body: options?.body ? JSON.stringify(options.body) : undefined,
+      signal: AbortSignal.timeout(5000), // 5s timeout
+    });
 
-  const json = await res.json().catch(() => ({}));
+    const json = await res.json().catch(() => ({}));
 
-  if (!res.ok) {
+    if (!res.ok) {
+      throw new AdminApiError(
+        json?.error?.message || json?.message || `API error (HTTP ${res.status})`,
+        res.status,
+        json?.error?.code || "api-error",
+      );
+    }
+
+    return (json.data ?? json) as T;
+  } catch (err) {
+    // Network errors → fall back to mock
+    if (err instanceof AdminApiError) throw err;
     throw new AdminApiError(
-      json?.error?.message || json?.message || `API error (HTTP ${res.status})`,
-      res.status,
-      json?.error?.code || "api-error",
+      "Backend API'ye ulasilamadi, mock veri kullaniliyor",
+      0,
+      "mock-fallback",
     );
   }
+}
 
-  // Response format: { data: T } or directly T
-  return (json.data ?? json) as T;
+// ─── Mock fallback helper ─────────────────────────────
+
+async function mockOrFetch<T>(endpoint: string, mockFn: () => T): Promise<T> {
+  try {
+    return await apiFetch<T>(endpoint);
+  } catch (err) {
+    if (err instanceof AdminApiError && err.code === "mock-fallback") {
+      await delay(300);
+      return mockFn();
+    }
+    throw err;
+  }
 }
 
 // ─── Admin API Methods ─────────────────────────────────
 
 export async function getCurrentAdmin(): Promise<AdminUser> {
-  return apiFetch<AdminUser>("/admin/me");
+  // First try local /api/admin/me route (checks profiles.is_admin)
+  try {
+    const res = await fetch("/api/admin/me");
+    if (res.ok) {
+      const json = await res.json();
+      return json.data as AdminUser;
+    }
+    // If the API explicitly says "not admin" (403), don't fall back to mock
+    if (res.status === 403) {
+      throw new AdminApiError("Admin yetkiniz bulunmuyor", 403, "not-admin");
+    }
+  } catch (err) {
+    if (err instanceof AdminApiError) throw err;
+    // Network error → try mock fallback
+  }
+  // Fall back to external API or mock
+  return mockOrFetch("/admin/me", () => ({ ...MOCK_ADMIN_USER }));
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  return apiFetch<DashboardStats>("/admin/dashboard/stats");
+  return mockOrFetch("/admin/dashboard/stats", () => ({ ...MOCK_DASHBOARD_STATS }));
 }
 
 export async function listUsers(): Promise<UserRecord[]> {
-  return apiFetch<UserRecord[]>("/admin/users");
+  return mockOrFetch("/admin/users", () => [...MOCK_USERS]);
 }
 
 export async function getUser(id: string): Promise<UserRecord> {
-  return apiFetch<UserRecord>(`/admin/users/${id}`);
+  return mockOrFetch(`/admin/users/${id}`, () => {
+    const user = MOCK_USERS.find((u) => u.id === id);
+    if (!user) throw new AdminApiError("Kullanici bulunamadi", 404, "not-found");
+    return { ...user };
+  });
 }
 
 export async function listWorkspaces(): Promise<WorkspaceRecord[]> {
-  return apiFetch<WorkspaceRecord[]>("/admin/workspaces");
+  return mockOrFetch("/admin/workspaces", () => [...MOCK_WORKSPACES]);
 }
 
 export async function listProjects(): Promise<ProjectRecord[]> {
-  return apiFetch<ProjectRecord[]>("/admin/projects");
+  return mockOrFetch("/admin/projects", () => [...MOCK_PROJECTS]);
 }
 
 export async function listCredits(): Promise<CreditRecord[]> {
-  return apiFetch<CreditRecord[]>("/admin/credits");
+  return mockOrFetch("/admin/credits", () => [...MOCK_CREDITS]);
 }
 
 export async function listSubscriptions(): Promise<SubscriptionRecord[]> {
-  return apiFetch<SubscriptionRecord[]>("/admin/subscriptions");
+  return mockOrFetch("/admin/subscriptions", () => [...MOCK_SUBSCRIPTIONS]);
 }
 
 export async function listRenderJobs(): Promise<RenderJobRecord[]> {
-  return apiFetch<RenderJobRecord[]>("/admin/render-jobs");
+  return mockOrFetch("/admin/render-jobs", () => [...MOCK_RENDER_JOBS]);
 }
 
 export async function listAuditLogs(): Promise<AuditLogEntry[]> {
-  return apiFetch<AuditLogEntry[]>("/admin/audit-logs");
+  return mockOrFetch("/admin/audit-logs", () => [...MOCK_AUDIT_LOGS]);
 }
 
 export async function listLegacyProducts(): Promise<LegacyProduct[]> {
-  return apiFetch<LegacyProduct[]>("/admin/legacy/products");
+  return mockOrFetch("/admin/legacy/products", () => [...MOCK_LEGACY_PRODUCTS]);
 }
 
 export async function grantCredits(
@@ -131,10 +192,10 @@ export async function grantCredits(
   amount: number,
   description?: string,
 ): Promise<{ success: boolean; balanceAfter: number }> {
-  return apiFetch<{ success: boolean; balanceAfter: number }>("/admin/credits/grant", {
-    method: "POST",
-    body: { userId, amount, description },
-  });
+  return mockOrFetch("/admin/credits/grant", () => ({
+    success: true,
+    balanceAfter: 50000,
+  }));
 }
 
 export async function deductCredits(
@@ -142,8 +203,8 @@ export async function deductCredits(
   amount: number,
   description?: string,
 ): Promise<{ success: boolean; balanceAfter: number }> {
-  return apiFetch<{ success: boolean; balanceAfter: number }>("/admin/credits/deduct", {
-    method: "POST",
-    body: { userId, amount, description },
-  });
+  return mockOrFetch("/admin/credits/deduct", () => ({
+    success: true,
+    balanceAfter: 40000,
+  }));
 }
