@@ -19,10 +19,29 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
       router.replace("/giris");
       return;
     }
-    getCurrentAdmin()
-      .then(() => setIsAdmin(true))
-      .catch(() => router.replace("/giris"))
-      .finally(() => setChecking(false));
+
+    // Try local API route first, then fall back to external Admin API
+    const checkAdmin = async () => {
+      try {
+        // 1. Try local /api/admin/me (checks profiles.is_admin directly)
+        const localRes = await fetch("/api/admin/me");
+        if (localRes.ok) {
+          setIsAdmin(true);
+          setChecking(false);
+          return;
+        }
+
+        // 2. Fall back to external Admin API
+        await getCurrentAdmin();
+        setIsAdmin(true);
+      } catch {
+        router.replace("/giris");
+      } finally {
+        setChecking(false);
+      }
+    };
+
+    checkAdmin();
   }, [currentUser, loading, router]);
 
   if (loading || checking) {
