@@ -22,7 +22,8 @@ export async function GET() {
       createdAt: (p.created_at as string) || new Date().toISOString(),
       lastSignInAt: null,
       workspaceCount: 0,
-      totalCreditsUsed: (p.total_spent as number) || 0,
+      credits: (p.credits as number) || 0,
+      totalCreditsUsed: Number(p.total_spent) || 0,
     }));
 
     return NextResponse.json({ data: users });
