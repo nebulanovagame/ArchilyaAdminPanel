@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, UserRound } from "lucide-react";
+import { ArrowRight, Coins, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -44,6 +44,7 @@ export default function UsersPage() {
                 <TableHead>Isim</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>Durum</TableHead>
+                <TableHead>Kredi</TableHead>
                 <TableHead>Workspace</TableHead>
                 <TableHead>Kayit Tarihi</TableHead>
                 <TableHead>Islem</TableHead>
@@ -60,6 +61,12 @@ export default function UsersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell><TableStatus status={user.status} /></TableCell>
+                  <TableCell>
+                    <span className="flex items-center gap-1 text-sm">
+                      <Coins className="w-3 h-3 text-yellow-400" />
+                      {user.credits?.toLocaleString("tr-TR") || "0"}
+                    </span>
+                  </TableCell>
                   <TableCell>{user.workspaceCount}</TableCell>
                   <TableCell className="text-[11px] text-gray-500">
                     {user.createdAt ? new Date(user.createdAt).toLocaleDateString("tr-TR") : "-"}

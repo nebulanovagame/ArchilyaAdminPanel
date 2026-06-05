@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Coins, MinusCircle } from "lucide-react";
+import { ArrowLeft, Coins, MinusCircle, TrendingUp } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,7 @@ export default function UserDetailPage() {
   const handleDeduct = async () => {
     const amount = parseInt(creditAmount, 10);
     if (!amount || amount <= 0) { toast.error("Gecerli bir miktar girin."); return; }
-    if (amount > (user?.totalCreditsUsed || 0)) {
+    if (amount > (user?.credits || 0)) {
       toast.error("Kullanici bu kadar krediye sahip degil.");
       return;
     }
@@ -106,8 +106,18 @@ export default function UserDetailPage() {
             <span className="text-white">{user.workspaceCount}</span>
           </div>
           <div>
-            <span className="text-[10px] uppercase tracking-widest text-gray-500 block mb-1">Kredi</span>
-            <span className="text-white font-bold">{user.totalCreditsUsed?.toLocaleString("tr-TR") || "0"}</span>
+            <span className="text-[10px] uppercase tracking-widest text-gray-500 block mb-1">
+              <Coins className="w-3 h-3 inline mr-1 text-yellow-400" />
+              Kredi Bakiyesi
+            </span>
+            <span className="text-white font-bold text-lg">{user.credits?.toLocaleString("tr-TR") || "0"}</span>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-widest text-gray-500 block mb-1">
+              <TrendingUp className="w-3 h-3 inline mr-1 text-blue-400" />
+              Toplam Harcama
+            </span>
+            <span className="text-white">{user.totalCreditsUsed?.toLocaleString("tr-TR") || "0"}</span>
           </div>
           <div>
             <span className="text-[10px] uppercase tracking-widest text-gray-500 block mb-1">Kayit</span>
@@ -134,7 +144,7 @@ export default function UserDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-[#0d0f13] border border-white/10 rounded-sm p-6 w-full max-w-sm mx-4">
             <h3 className="font-serif text-lg text-white italic mb-4">Kredi Yukle</h3>
-            <p className="text-xs font-sans text-gray-400 mb-4">{user.email} - Mevcut: {user.totalCreditsUsed?.toLocaleString("tr-TR") || "0"}</p>
+            <p className="text-xs font-sans text-gray-400 mb-4">{user.email} - Mevcut bakiye: <span className="text-yellow-400 font-bold">{user.credits?.toLocaleString("tr-TR") || "0"}</span></p>
             <Input type="number" min="1" placeholder="Miktar" value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} autoFocus />
             <div className="flex justify-end gap-2 mt-4">
               <Button variant="secondary" size="sm" onClick={() => setShowGrant(false)} disabled={submitting}>Iptal</Button>
@@ -149,7 +159,7 @@ export default function UserDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-[#0d0f13] border border-white/10 rounded-sm p-6 w-full max-w-sm mx-4">
             <h3 className="font-serif text-lg text-white italic mb-4">Kredi Sil</h3>
-            <p className="text-xs font-sans text-gray-400 mb-4">{user.email} - Mevcut: {user.totalCreditsUsed?.toLocaleString("tr-TR") || "0"}</p>
+            <p className="text-xs font-sans text-gray-400 mb-4">{user.email} - Mevcut bakiye: <span className="text-yellow-400 font-bold">{user.credits?.toLocaleString("tr-TR") || "0"}</span></p>
             <Input type="number" min="1" placeholder="Silinecek miktar" value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} autoFocus />
             <div className="flex justify-end gap-2 mt-4">
               <Button variant="secondary" size="sm" onClick={() => setShowDeduct(false)} disabled={submitting}>Iptal</Button>
