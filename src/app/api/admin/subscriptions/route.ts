@@ -6,21 +6,21 @@ export async function GET() {
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
-      .from("profiles")
-      .select("id, email, subscription_plan, subscription_status, stripe_customer_id, created_at")
-      .not("subscription_plan", "is", null)
+      .from("subscriptions")
+      .select(`id, user_id, plan, status, current_period_start, current_period_end, created_at,
+        profiles!user_id(email)`)
       .order("created_at", { ascending: false })
       .limit(50);
 
     if (error) throw error;
 
-    const subscriptions = (data || []).map((p: Record<string, unknown>, i: number) => ({
-      id: `sub-${i + 1}`,
-      userEmail: (p.email as string) || "",
-      planName: (p.subscription_plan as string) || "",
-      status: ((p.subscription_status as string) || "active") as "active" | "canceled" | "past_due" | "trialing",
-      currentPeriodStart: new Date().toISOString(),
-      currentPeriodEnd: new Date(Date.now() + 30 * 86400000).toISOString(),
+    const subscriptions = (data || []).map((s: Record<string, unknown>) => ({
+      id: String(s.id),
+      userEmail: ((s as any).profiles?.email as string) || "",
+      planName: (s.plan as string) || "",
+      status: ((s.status as string) || "active") as "active" | "canceled" | "past_due" | "trialing",
+      currentPeriodStart: (s.current_period_start as string) || new Date().toISOString(),
+      currentPeriodEnd: (s.current_period_end as string) || new Date().toISOString(),
       amount: 0,
       currency: "TRY",
     }));

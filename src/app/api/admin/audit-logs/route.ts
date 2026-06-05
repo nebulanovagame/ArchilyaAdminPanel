@@ -7,7 +7,7 @@ export async function GET() {
     const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("workspace_activity_logs")
-      .select("*")
+      .select(`*`)
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -17,9 +17,9 @@ export async function GET() {
       id: String(l.id),
       actorEmail: (l.actor_email as string) || "",
       action: (l.action as string) || "unknown",
-      resource: (l.resource as string) || "",
-      resourceId: String((l.resource_id as string) || ""),
-      details: (l.details as string) || null,
+      resource: (l.target_type as string) || "",
+      resourceId: String((l.target_id as string) || ""),
+      details: null,
       ipAddress: null,
       createdAt: (l.created_at as string) || new Date().toISOString(),
     }));

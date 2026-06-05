@@ -7,7 +7,8 @@ export async function GET() {
     const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("ai_studio_jobs")
-      .select("id, user_id, tool_id, status, created_at, completed_at, credit_cost")
+      .select(`id, user_id, tool_id, status, created_at, completed_at, credit_cost,
+        profiles!user_id(email)`)
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -17,7 +18,7 @@ export async function GET() {
       id: String(j.id),
       type: "ai" as const,
       status: (j.status as string) || "unknown",
-      userEmail: "",
+      userEmail: ((j as any).profiles?.email as string) || "",
       projectName: (j.tool_id as string) || "",
       progress: j.status === "completed" ? 100 : j.status === "failed" ? 0 : 50,
       createdAt: (j.created_at as string) || new Date().toISOString(),
