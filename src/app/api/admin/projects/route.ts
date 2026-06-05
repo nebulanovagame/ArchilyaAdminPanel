@@ -7,23 +7,28 @@ export async function GET() {
     const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("projects")
-      .select("*")
+      .select(`id, name, workspace_id, owner_id, status, file_count, total_size, created_at, updated_at,
+        profiles!owner_id(email)`)
+      .is("is_deleted", false)
       .order("created_at", { ascending: false })
       .limit(50);
 
     if (error) throw error;
 
-    const projects = (data || []).map((p: Record<string, unknown>) => ({
-      id: String(p.id),
-      name: (p.name as string) || "",
-      workspaceId: String((p as Record<string, unknown>).workspace_id || ""),
-      ownerEmail: "",
-      status: (p.status as string) || "active",
-      fileCount: 0,
-      totalSize: 0,
-      createdAt: (p.created_at as string) || new Date().toISOString(),
-      updatedAt: (p.updated_at as string) || new Date().toISOString(),
-    }));
+    const projects = (data || []).map((p: Record<string, unknown>) => {
+      const fileCount = (p.file_count as any) || { dwg: 0, img: 0, pdf: 0 };
+      return {
+        id: String(p.id),
+        name: (p.name as string) || "",
+        workspaceId: String((p.workspace_id as string) || ""),
+        ownerEmail: ((p as any).profiles?.email as string) || "",
+        status: (p.status as string) || "Taslak",
+        fileCount: (fileCount.dwg || 0) + (fileCount.img || 0) + (fileCount.pdf || 0),
+        totalSize: (p.total_size as number) || 0,
+        createdAt: (p.created_at as string) || new Date().toISOString(),
+        updatedAt: (p.updated_at as string) || new Date().toISOString(),
+      };
+    });
 
     return NextResponse.json({ data: projects });
   } catch (err) {
