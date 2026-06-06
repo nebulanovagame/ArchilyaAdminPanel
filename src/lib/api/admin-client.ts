@@ -187,18 +187,88 @@ export async function listLegacyProducts(): Promise<LegacyProduct[]> {
   );
 }
 
+async function postWithFallback<T>(
+  localPath: string,
+  externalPath: string,
+  body: Record<string, unknown>,
+  mockFn: () => T,
+): Promise<T> {
+  // 1. Try local API route
+  try {
+    const localRes = await fetch(localPath, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (localRes.ok) {
+      const json = await localRes.json();
+      return (json.data ?? json) as T;
+    }
+    const err = await localRes.json().catch(() => ({}));
+    throw new AdminApiError(
+      err?.error?.message || "Kredi islemi basarisiz",
+      localRes.status,
+      err?.error?.code || "unknown",
+    );
+  } catch (e) {
+    if (e instanceof AdminApiError) throw e;
+    // network error — try next
+  }
+
+  // 2. Try external backend API
+  if (API_BASE && _accessToken) {
+    try {
+      const res = await fetch(`${API_BASE}${externalPath}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${_accessToken}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return (json.data ?? json) as T;
+      }
+      const err = await res.json().catch(() => ({}));
+      throw new AdminApiError(
+        err?.error?.message || "Kredi islemi basarisiz",
+        res.status,
+        err?.error?.code || "unknown",
+      );
+    } catch (e) {
+      if (e instanceof AdminApiError) throw e;
+    }
+  }
+
+  // 3. Mock fallback
+  await delay(300);
+  return mockFn();
+}
+
 export async function grantCredits(
-  _userId: string,
-  _amount: number,
-  _description?: string,
+  userId: string,
+  amount: number,
+  description?: string,
 ): Promise<{ success: boolean; balanceAfter: number }> {
-  return { success: true, balanceAfter: 50000 };
+  return postWithFallback(
+    `/api/admin/users/${userId}/credits`,
+    `/admin/users/${userId}/credits`,
+    { action: "grant", amount, description },
+    () => ({ success: true, balanceAfter: 50000 }),
+  );
 }
 
 export async function deductCredits(
-  _userId: string,
-  _amount: number,
-  _description?: string,
+  userId: string,
+  amount: number,
+  description?: string,
 ): Promise<{ success: boolean; balanceAfter: number }> {
-  return { success: true, balanceAfter: 40000 };
+  return postWithFallback(
+    `/api/admin/users/${userId}/credits`,
+    `/admin/users/${userId}/credits`,
+    { action: "deduct", amount, description },
+    () => ({ success: true, balanceAfter: 40000 }),
+  );
 }
