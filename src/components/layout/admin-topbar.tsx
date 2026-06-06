@@ -13,6 +13,7 @@ function getPageTitle(pathname: string): string {
     "/subscriptions": "Abonelikler",
     "/render-jobs": "Render İşleri",
     "/ai-jobs": "AI İşleri",
+    "/teklif-sunum": "Teklif / Sunum",
     "/audit-logs": "Denetim Kaydı",
     "/settings": "Ayarlar",
     "/legacy/products": "Eski Sistem - Ürünler",

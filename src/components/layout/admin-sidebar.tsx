@@ -12,6 +12,7 @@ import {
   CreditCard,
   Image,
   Brain,
+  FileText,
   Archive,
   ScrollText,
   Settings,
@@ -40,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   { icon: CreditCard, label: "Abonelikler", href: "/subscriptions" },
   { icon: Image, label: "Render İşleri", href: "/render-jobs" },
   { icon: Brain, label: "AI İşleri", href: "/ai-jobs" },
+  { icon: FileText, label: "Teklif / Sunum", href: "/teklif-sunum" },
   {
     icon: Archive,
     label: "Eski Sistem",
