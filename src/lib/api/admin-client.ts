@@ -18,6 +18,11 @@ import type {
   RenderJobRecord,
   AuditLogEntry,
   LegacyProduct,
+  AiJobRecord,
+  AiJobDetail,
+  AiJobMetrics,
+  PaymentReconciliationResponse,
+  PaymentSessionsResponse,
 } from "./types";
 
 import {
@@ -52,7 +57,30 @@ class AdminApiError extends Error {
   }
 }
 
-/** Try local API route first, then external API, then mock fallback */
+async function fetchLocal<T>(path: string): Promise<T> {
+  const res = await fetch(path, { cache: "no-store" });
+  const json = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new AdminApiError(
+      json?.error?.message || "Admin API istegi basarisiz",
+      res.status,
+      json?.error?.code || "unknown",
+    );
+  }
+
+  return (json.data ?? json) as T;
+}
+
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+function isMockAllowed(): boolean {
+  // Mock fallback sadece development ortaminda kullanilir.
+  // Production'da API hata verirse gercek hata kullaniciya gosterilir.
+  return !IS_PRODUCTION;
+}
+
+/** Try local API route first, then external API, then mock fallback (dev only) */
 async function fetchWithFallback<T>(
   localPath: string,
   externalPath: string,
@@ -84,13 +112,22 @@ async function fetchWithFallback<T>(
         return (json.data ?? json) as T;
       }
     } catch {
-      // network error — fall through to mock
+      // network error — fall through to mock or error
     }
   }
 
-  // 3. Mock fallback
-  await delay(300);
-  return mockFn();
+  // 3. Mock fallback (dev only)
+  if (isMockAllowed()) {
+    await delay(300);
+    return mockFn();
+  }
+
+  // Production: API hatasini firlat
+  throw new AdminApiError(
+    "Admin API su anda kullanilamiyor. Lutfen daha sonra tekrar deneyin.",
+    503,
+    "service_unavailable",
+  );
 }
 
 // ─── Admin API Methods ─────────────────────────────────
@@ -187,6 +224,33 @@ export async function listLegacyProducts(): Promise<LegacyProduct[]> {
   );
 }
 
+export async function listPaymentSessions(params?: {
+  status?: "all" | "pending" | "completed" | "failed";
+  page?: number;
+  limit?: number;
+}): Promise<PaymentSessionsResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (params?.status && params.status !== "all") {
+    searchParams.set("status", params.status);
+  }
+
+  if (params?.page) {
+    searchParams.set("page", String(params.page));
+  }
+
+  if (params?.limit) {
+    searchParams.set("limit", String(params.limit));
+  }
+
+  const query = searchParams.toString();
+  return fetchLocal<PaymentSessionsResponse>(`/api/admin/payment-sessions${query ? `?${query}` : ""}`);
+}
+
+export async function listPaymentReconciliation(): Promise<PaymentReconciliationResponse> {
+  return fetchLocal<PaymentReconciliationResponse>("/api/admin/payment-reconciliation");
+}
+
 async function postWithFallback<T>(
   localPath: string,
   externalPath: string,
@@ -242,9 +306,17 @@ async function postWithFallback<T>(
     }
   }
 
-  // 3. Mock fallback
-  await delay(300);
-  return mockFn();
+  // 3. Mock fallback (dev only)
+  if (isMockAllowed()) {
+    await delay(300);
+    return mockFn();
+  }
+
+  throw new AdminApiError(
+    "Admin API su anda kullanilamiyor. Lutfen daha sonra tekrar deneyin.",
+    503,
+    "service_unavailable",
+  );
 }
 
 export async function grantCredits(

@@ -1,8 +1,11 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/admin-guard";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -14,16 +17,20 @@ export async function GET() {
 
     if (error) throw error;
 
-    const subscriptions = (data || []).map((s: Record<string, unknown>) => ({
-      id: String(s.id),
-      userEmail: ((s as any).profiles?.email as string) || "",
-      planName: (s.plan as string) || "",
-      status: ((s.status as string) || "active") as "active" | "canceled" | "past_due" | "trialing",
-      currentPeriodStart: (s.current_period_start as string) || new Date().toISOString(),
-      currentPeriodEnd: (s.current_period_end as string) || new Date().toISOString(),
-      amount: 0,
-      currency: "TRY",
-    }));
+    const subscriptions = (data || []).map((s: Record<string, unknown>) => {
+      const profiles = s.profiles as Record<string, unknown> | undefined;
+
+      return {
+        id: String(s.id),
+        userEmail: (profiles?.email as string) || "",
+        planName: (s.plan as string) || "",
+        status: ((s.status as string) || "active") as "active" | "canceled" | "past_due" | "trialing",
+        currentPeriodStart: (s.current_period_start as string) || new Date().toISOString(),
+        currentPeriodEnd: (s.current_period_end as string) || new Date().toISOString(),
+        amount: 0,
+        currency: "TRY",
+      };
+    });
 
     return NextResponse.json({ data: subscriptions });
   } catch (err) {

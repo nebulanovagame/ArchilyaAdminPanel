@@ -1,8 +1,11 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/admin-guard";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -14,16 +17,20 @@ export async function GET() {
 
     if (error) throw error;
 
-    const jobs = (data || []).map((j: Record<string, unknown>) => ({
-      id: String(j.id),
-      type: "ai" as const,
-      status: (j.status as string) || "unknown",
-      userEmail: ((j as any).profiles?.email as string) || "",
-      projectName: (j.tool_id as string) || "",
-      progress: j.status === "completed" ? 100 : j.status === "failed" ? 0 : 50,
-      createdAt: (j.created_at as string) || new Date().toISOString(),
-      completedAt: (j.completed_at as string) || null,
-    }));
+    const jobs = (data || []).map((j: Record<string, unknown>) => {
+      const profiles = j.profiles as Record<string, unknown> | undefined;
+
+      return {
+        id: String(j.id),
+        type: "ai" as const,
+        status: (j.status as string) || "unknown",
+        userEmail: (profiles?.email as string) || "",
+        projectName: (j.tool_id as string) || "",
+        progress: j.status === "completed" ? 100 : j.status === "failed" ? 0 : 50,
+        createdAt: (j.created_at as string) || new Date().toISOString(),
+        completedAt: (j.completed_at as string) || null,
+      };
+    });
 
     return NextResponse.json({ data: jobs });
   } catch (err) {

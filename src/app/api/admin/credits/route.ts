@@ -1,6 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/admin-guard";
 
 const TYPE_MAP: Record<string, "grant" | "usage" | "refund" | "purchase"> = {
   credit_purchase: "purchase",
@@ -11,6 +12,9 @@ const TYPE_MAP: Record<string, "grant" | "usage" | "refund" | "purchase"> = {
 };
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -22,14 +26,18 @@ export async function GET() {
 
     if (error) throw error;
 
-    const credits = (data || []).map((c: Record<string, unknown>) => ({
-      id: String(c.id),
-      userEmail: ((c as any).profiles?.email as string) || "",
-      amount: (c.amount as number) || 0,
-      type: TYPE_MAP[(c.type as string)] || "grant",
-      description: (c.description as string) || "",
-      createdAt: (c.created_at as string) || new Date().toISOString(),
-    }));
+    const credits = (data || []).map((c: Record<string, unknown>) => {
+      const profiles = c.profiles as Record<string, unknown> | undefined;
+
+      return {
+        id: String(c.id),
+        userEmail: (profiles?.email as string) || "",
+        amount: (c.amount as number) || 0,
+        type: TYPE_MAP[(c.type as string)] || "grant",
+        description: (c.description as string) || "",
+        createdAt: (c.created_at as string) || new Date().toISOString(),
+      };
+    });
 
     return NextResponse.json({ data: credits });
   } catch (err) {

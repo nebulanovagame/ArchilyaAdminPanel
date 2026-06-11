@@ -1,8 +1,12 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/admin-guard";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -16,12 +20,14 @@ export async function GET() {
     if (error) throw error;
 
     const projects = (data || []).map((p: Record<string, unknown>) => {
-      const fileCount = (p.file_count as any) || { dwg: 0, img: 0, pdf: 0 };
+      const fileCount = (p.file_count as Record<string, number>) || { dwg: 0, img: 0, pdf: 0 };
+      const pRecord = p as Record<string, unknown>;
+      const profiles = pRecord.profiles as Record<string, unknown> | undefined;
       return {
         id: String(p.id),
         name: (p.name as string) || "",
         workspaceId: String((p.workspace_id as string) || ""),
-        ownerEmail: ((p as any).profiles?.email as string) || "",
+        ownerEmail: (profiles?.email as string) || "",
         status: (p.status as string) || "Taslak",
         fileCount: (fileCount.dwg || 0) + (fileCount.img || 0) + (fileCount.pdf || 0),
         totalSize: (p.total_size as number) || 0,

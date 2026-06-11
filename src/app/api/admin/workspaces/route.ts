@@ -1,8 +1,11 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/admin-guard";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
   try {
     const supabase = createAdminClient();
 
@@ -33,7 +36,7 @@ export async function GET() {
     });
 
     const result = (workspaces || []).map((w: Record<string, unknown>) => {
-      const profile = (w as any).profiles;
+      const profile = (w as Record<string, unknown>).profiles as Record<string, unknown> | undefined;
       return {
         id: String(w.id),
         name: (w.name as string) || "",

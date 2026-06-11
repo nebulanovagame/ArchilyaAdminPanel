@@ -81,6 +81,39 @@ export type SubscriptionRecord = {
   currency: string;
 };
 
+export type PaymentSessionStatus = "pending" | "completed" | "failed";
+
+export type PaymentSessionRecord = {
+  token: string;
+  userEmail: string;
+  plan: string;
+  status: PaymentSessionStatus;
+  amount: number;
+  credits: number;
+  createdAt: string;
+};
+
+export type PaymentSessionsResponse = {
+  items: PaymentSessionRecord[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+export type PaymentReconciliationIssue = {
+  type: string;
+  token: string;
+  userEmail: string;
+  plan: string;
+  message: string;
+};
+
+export type PaymentReconciliationResponse = {
+  items: PaymentReconciliationIssue[];
+  total: number;
+};
+
 export type RenderJobRecord = {
   id: string;
   type: "render" | "ai";
@@ -90,6 +123,83 @@ export type RenderJobRecord = {
   progress: number;
   createdAt: string;
   completedAt: string | null;
+};
+
+export type AiJobBilling = {
+  status: string;
+  amount: number;
+  refunded: boolean;
+  refundedAt: string | null;
+  refundTransactionId: string | null;
+  refundError: Record<string, unknown> | null;
+  transactionId: string | null;
+};
+
+export type AiJobDeadLetter = {
+  reason: string;
+  canManualRetry: boolean;
+  finalError: Record<string, unknown> | null;
+  lastFailedAt: string | null;
+  attempts: number;
+};
+
+export type AiJobEvent = {
+  id: string;
+  eventType: string;
+  previousStatus: string | null;
+  newStatus: string | null;
+  reason: string | null;
+  attempt: number | null;
+  provider: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export type AiJobRecord = {
+  id: string;
+  type: "render" | "ai";
+  status: string;
+  rawStatus: string;
+  userId: string;
+  userEmail: string;
+  projectName: string;
+  toolId: string;
+  outputType: string;
+  creditCost: number;
+  attemptCount: number;
+  progress: number;
+  createdAt: string;
+  completedAt: string | null;
+  failedAt: string | null;
+  updatedAt: string | null;
+  errorMessage: string | null;
+  lastAttemptError: Record<string, unknown> | null;
+  deadLetter: AiJobDeadLetter | null;
+  billing: AiJobBilling;
+};
+
+export type AiJobDetail = {
+  job: AiJobRecord;
+  events: AiJobEvent[];
+};
+
+export type AiJobMetrics = {
+  periodDays: number;
+  totalJobs: number;
+  statusCounts: Record<string, number>;
+  completed: {
+    count: number;
+    averageDurationMs: number;
+  };
+  queue: {
+    averageWaitMs: number;
+  };
+  refundCount: number;
+  refundRate: number;
+  deadLetterCount: number;
+  providerErrorCount: number;
+  providerErrorRate: number;
+  toolUsage: { toolId: string; count: number; creditCost: number }[];
 };
 
 export type AuditLogEntry = {
