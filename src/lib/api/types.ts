@@ -264,6 +264,30 @@ export type LegacyMachine = {
   createdAt: string;
 };
 
+export type NotificationRecord = {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+  readAt: string | null;
+};
+
+export type SendNotificationPayload = {
+  title: string;
+  body: string;
+  type?: string;
+  targetUserIds?: string[];
+};
+
+export type SendNotificationResponse = {
+  success: boolean;
+  sentCount: number;
+  insertedCount: number;
+};
+
 export type LauncherRelease = {
   id: string;
   version: string;

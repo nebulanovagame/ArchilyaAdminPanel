@@ -23,6 +23,8 @@ import type {
   AiJobMetrics,
   PaymentReconciliationResponse,
   PaymentSessionsResponse,
+  SendNotificationPayload,
+  SendNotificationResponse,
 } from "./types";
 
 import {
@@ -329,6 +331,17 @@ export async function grantCredits(
     `/admin/users/${userId}/credits`,
     { action: "grant", amount, description },
     () => ({ success: true, balanceAfter: 50000 }),
+  );
+}
+
+export async function sendNotification(
+  payload: SendNotificationPayload,
+): Promise<SendNotificationResponse> {
+  return postWithFallback(
+    "/api/admin/notifications",
+    "/admin/notifications",
+    payload as unknown as Record<string, unknown>,
+    () => ({ success: true, sentCount: 1, insertedCount: 1 }),
   );
 }
 

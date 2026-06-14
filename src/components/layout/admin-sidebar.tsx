@@ -17,6 +17,7 @@ import {
   FileText,
   Archive,
   ScrollText,
+  Megaphone,
   Settings,
   ChevronRight,
   LogOut,
@@ -60,6 +61,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { icon: ScrollText, label: "Denetim Kaydı", href: "/audit-logs" },
+  { icon: Megaphone, label: "Bildirimler", href: "/notifications" },
   { icon: Settings, label: "Ayarlar", href: "/settings" },
 ];
 
