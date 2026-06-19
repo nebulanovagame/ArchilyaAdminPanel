@@ -23,6 +23,7 @@ import {
   LogOut,
   Loader2,
   ChevronDown,
+  Receipt,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { icon: CreditCard, label: "Abonelikler", href: "/subscriptions" },
   { icon: Wallet, label: "Ödeme Oturumları", href: "/payment-sessions" },
   { icon: ShieldAlert, label: "Ödeme Mutabakatı", href: "/payment-reconciliation" },
+  { icon: Receipt, label: "Fatura Yönetimi", href: "/invoices" },
   { icon: Image, label: "Render İşleri", href: "/render-jobs" },
   { icon: Brain, label: "AI İşleri", href: "/ai-jobs" },
   { icon: FileText, label: "Teklif / Sunum", href: "/teklif-sunum" },

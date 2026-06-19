@@ -2,8 +2,13 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
+import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { rejectCrossSiteMutation } from "@/lib/api/security";
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handler(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const originError = rejectCrossSiteMutation(request);
+  if (originError) return originError;
+
   const guard = await requireAdmin();
   if (guard instanceof NextResponse) return guard;
   try {
@@ -70,8 +75,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     try {
       await supabase.from("workspace_activity_logs").insert({
         action: "ai_job_manual_retry",
-        actor_id: "admin-panel",
-        actor_email: "admin@archilya.com",
+        actor_id: guard.uid,
+        actor_email: guard.email,
         workspace_id: (job as Record<string, unknown>).workspace_id || null,
         target_id: id,
         metadata: {
@@ -103,3 +108,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 }
+
+export const POST = withRateLimit(handler, adminRateLimits.mutation);

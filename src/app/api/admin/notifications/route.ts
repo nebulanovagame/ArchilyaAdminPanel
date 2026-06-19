@@ -2,8 +2,19 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
+import { writeAdminAuditLog } from "@/lib/api/audit";
+import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { rejectCrossSiteMutation } from "@/lib/api/security";
 
-export async function POST(_request: Request) {
+const MAX_TITLE_LENGTH = 120;
+const MAX_BODY_LENGTH = 2_000;
+const MAX_TARGET_USERS = 500;
+const VALID_TYPE_PATTERN = /^[a-z0-9_-]{1,64}$/;
+
+async function handler(_request: Request) {
+  const originError = rejectCrossSiteMutation(_request);
+  if (originError) return originError;
+
   const guard = await requireAdmin();
   if (guard instanceof NextResponse) return guard;
 
@@ -13,6 +24,7 @@ export async function POST(_request: Request) {
       body?: string;
       type?: string;
       targetUserIds?: string[];
+      confirmBroadcast?: boolean;
     };
     try {
       body = await _request.json();
@@ -27,7 +39,7 @@ export async function POST(_request: Request) {
     const bodyText = (body.body || "").trim();
     const type = (body.type || "broadcast").trim();
     const targetUserIds = Array.isArray(body.targetUserIds)
-      ? body.targetUserIds.filter(Boolean)
+      ? body.targetUserIds.map((id) => String(id).trim()).filter(Boolean)
       : null;
 
     if (!title || !bodyText) {
@@ -37,17 +49,33 @@ export async function POST(_request: Request) {
       );
     }
 
-    const supabase = createAdminClient();
+    if (title.length > MAX_TITLE_LENGTH || bodyText.length > MAX_BODY_LENGTH || !VALID_TYPE_PATTERN.test(type)) {
+      return NextResponse.json(
+        { error: { message: "Bildirim alani gecersiz veya cok uzun", code: "invalid-argument" } },
+        { status: 400 },
+      );
+    }
 
-    // Get admin info for logging
-    const {
-      data: { user: adminUser },
-    } = await supabase.auth.getUser();
+    if (targetUserIds && targetUserIds.length > MAX_TARGET_USERS) {
+      return NextResponse.json(
+        { error: { message: "Tek istekte en fazla 500 hedef kullanici secilebilir", code: "too-many-targets" } },
+        { status: 400 },
+      );
+    }
+
+    const supabase = createAdminClient();
 
     let userIds = targetUserIds;
 
     // If no specific targets → send to ALL users
     if (!userIds || userIds.length === 0) {
+      if (body.confirmBroadcast !== true) {
+        return NextResponse.json(
+          { error: { message: "Tum kullanicilara bildirim icin confirmBroadcast gereklidir", code: "broadcast-confirmation-required" } },
+          { status: 400 },
+        );
+      }
+
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
         .select("id");
@@ -75,8 +103,8 @@ export async function POST(_request: Request) {
       title,
       body: bodyText,
       data: {
-        sentBy: adminUser?.id || "unknown",
-        sentByEmail: adminUser?.email || "unknown",
+        sentBy: guard.uid,
+        sentByEmail: guard.email || "unknown",
       },
     }));
 
@@ -96,22 +124,19 @@ export async function POST(_request: Request) {
     }
 
     // Log activity
-    try {
-      await supabase.from("workspace_activity_logs").insert({
-        actor_id: adminUser?.id || "unknown",
-        action: "send_notification",
-        resource: "notifications",
-        resource_id: "broadcast",
-        details: JSON.stringify({
-          type,
-          title,
-          targetCount: userIds.length,
-          hasSpecificTargets: !!targetUserIds,
-        }),
-      });
-    } catch {
-      // Non-critical
-    }
+    await writeAdminAuditLog(supabase, {
+      actorId: guard.uid,
+      actorEmail: guard.email,
+      action: "send_notification",
+      resource: "notifications",
+      resourceId: targetUserIds ? "targeted" : "broadcast",
+      details: {
+        type,
+        title,
+        targetCount: userIds.length,
+        hasSpecificTargets: !!targetUserIds,
+      },
+    });
 
     return NextResponse.json({
       data: {
@@ -128,3 +153,5 @@ export async function POST(_request: Request) {
     );
   }
 }
+
+export const POST = withRateLimit(handler, adminRateLimits.broadcast);

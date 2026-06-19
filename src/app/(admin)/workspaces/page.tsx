@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Building2 } from "lucide-react";
 import { listWorkspaces } from "@/lib/api/admin-client";
 import type { WorkspaceRecord } from "@/lib/api/types";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableStatus } from "@/components/ui/table";

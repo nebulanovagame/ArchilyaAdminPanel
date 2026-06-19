@@ -2,8 +2,9 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
+import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 
-export async function GET(request: Request) {
+async function handler(request: Request) {
   const guard = await requireAdmin();
   if (guard instanceof NextResponse) return guard;
   try {
@@ -102,3 +103,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withRateLimit(handler, adminRateLimits.read);

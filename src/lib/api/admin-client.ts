@@ -18,9 +18,6 @@ import type {
   RenderJobRecord,
   AuditLogEntry,
   LegacyProduct,
-  AiJobRecord,
-  AiJobDetail,
-  AiJobMetrics,
   PaymentReconciliationResponse,
   PaymentSessionsResponse,
   SendNotificationPayload,
@@ -329,7 +326,7 @@ export async function grantCredits(
   return postWithFallback(
     `/api/admin/users/${userId}/credits`,
     `/admin/users/${userId}/credits`,
-    { action: "grant", amount, description },
+    { action: "grant", amount, description, idempotencyKey: crypto.randomUUID() },
     () => ({ success: true, balanceAfter: 50000 }),
   );
 }
@@ -340,7 +337,10 @@ export async function sendNotification(
   return postWithFallback(
     "/api/admin/notifications",
     "/admin/notifications",
-    payload as unknown as Record<string, unknown>,
+    {
+      ...payload,
+      confirmBroadcast: payload.confirmBroadcast ?? !payload.targetUserIds?.length,
+    } as Record<string, unknown>,
     () => ({ success: true, sentCount: 1, insertedCount: 1 }),
   );
 }
@@ -353,7 +353,7 @@ export async function deductCredits(
   return postWithFallback(
     `/api/admin/users/${userId}/credits`,
     `/admin/users/${userId}/credits`,
-    { action: "deduct", amount, description },
+    { action: "deduct", amount, description, idempotencyKey: crypto.randomUUID() },
     () => ({ success: true, balanceAfter: 40000 }),
   );
 }

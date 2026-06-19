@@ -280,6 +280,7 @@ export type SendNotificationPayload = {
   body: string;
   type?: string;
   targetUserIds?: string[];
+  confirmBroadcast?: boolean;
 };
 
 export type SendNotificationResponse = {

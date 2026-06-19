@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Brain } from "lucide-react";
 import { listRenderJobs } from "@/lib/api/admin-client";
 import type { RenderJobRecord } from "@/lib/api/types";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableStatus } from "@/components/ui/table";

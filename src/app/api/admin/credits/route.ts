@@ -2,6 +2,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
+import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 
 const TYPE_MAP: Record<string, "grant" | "usage" | "refund" | "purchase"> = {
   credit_purchase: "purchase",
@@ -11,7 +12,7 @@ const TYPE_MAP: Record<string, "grant" | "usage" | "refund" | "purchase"> = {
   subscription_refund: "refund",
 };
 
-export async function GET() {
+async function handler() {
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
 
@@ -48,3 +49,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withRateLimit(handler, adminRateLimits.read);

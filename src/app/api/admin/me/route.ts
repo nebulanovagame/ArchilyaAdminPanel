@@ -2,6 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 
 /**
  * GET /api/admin/me
@@ -13,7 +14,7 @@ import { NextResponse } from "next/server";
  * Security: Only returns admin info if the user has a valid
  * session AND their profile has is_admin = true.
  */
-export async function GET() {
+async function handler() {
   try {
     const supabase = await createClient();
 
@@ -71,3 +72,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withRateLimit(handler, adminRateLimits.auth);

@@ -16,13 +16,13 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import type { AdminUser } from "@/lib/api/types";
 
 export type AdminSessionUser = {
   uid: string;
   email: string | null;
   displayName: string | null;
   avatarUrl: string | null;
+  isAdmin: boolean;
 };
 
 function toAdminSessionUser(user: {
@@ -33,12 +33,18 @@ function toAdminSessionUser(user: {
     avatar_url?: string | null;
     picture?: string | null;
   } | null;
+}, profile: {
+  email?: string | null;
+  display_name?: string | null;
+  photo_url?: string | null;
+  is_admin?: boolean | null;
 }): AdminSessionUser {
   return {
     uid: user.id,
-    email: user.email ?? null,
-    displayName: user.user_metadata?.name ?? null,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+    email: profile.email ?? user.email ?? null,
+    displayName: profile.display_name ?? user.user_metadata?.name ?? null,
+    avatarUrl: profile.photo_url ?? user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+    isAdmin: profile.is_admin === true,
   };
 }
 
@@ -49,7 +55,15 @@ export async function getOptionalAdminSession(): Promise<AdminSessionUser | null
 
     if (error || !user) return null;
 
-    return toAdminSessionUser(user);
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("email, display_name, photo_url, is_admin")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError || !profile || profile.is_admin !== true) return null;
+
+    return toAdminSessionUser(user, profile);
   } catch {
     return null;
   }

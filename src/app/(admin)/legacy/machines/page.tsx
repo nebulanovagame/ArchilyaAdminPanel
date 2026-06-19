@@ -15,7 +15,7 @@ export default function LegacyMachinesPage() {
           <Clock className="w-12 h-12 text-gray-700 mx-auto mb-4" />
           <CardTitle>Cok Yakinda</CardTitle>
           <p className="text-sm font-sans text-gray-500 mt-2">
-            Eski sistem makineler API'si henuz kullanima hazir degil.
+            Eski sistem makineler API servisi henuz kullanima hazir degil.
           </p>
         </div>
       </Card>

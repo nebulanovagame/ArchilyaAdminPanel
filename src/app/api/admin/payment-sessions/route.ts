@@ -1,8 +1,9 @@
 import "server-only";
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/admin-guard";
+import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ function getApiBaseUrl() {
   return process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL?.replace(/\/$/, "") || "";
 }
 
-export async function GET(request: NextRequest) {
+async function handler(request: Request) {
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
 
@@ -38,9 +39,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const page = Math.max(Number(request.nextUrl.searchParams.get("page") || DEFAULT_PAGE), 1);
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(Number(searchParams.get("page") || DEFAULT_PAGE), 1);
     const limit = Math.min(
-      Math.max(Number(request.nextUrl.searchParams.get("limit") || DEFAULT_LIMIT), 1),
+      Math.max(Number(searchParams.get("limit") || DEFAULT_LIMIT), 1),
       MAX_LIMIT,
     );
 
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
     upstreamParams.set("page", String(page));
     upstreamParams.set("limit", String(limit));
 
-    const status = request.nextUrl.searchParams.get("status");
+    const status = searchParams.get("status");
     if (status && ["pending", "completed", "failed"].includes(status)) {
       upstreamParams.set("status", status);
     }
@@ -61,16 +63,29 @@ export async function GET(request: NextRequest) {
       cache: "no-store",
     });
 
-    const payload = await upstreamResponse.json().catch(() => null);
+    const rawPayload = await upstreamResponse.json().catch(() => null);
 
     if (!upstreamResponse.ok) {
       return NextResponse.json(
-        payload || { error: { message: "Odeme oturumlari yuklenemedi.", code: "upstream-error" } },
+        rawPayload || { error: { message: "Odeme oturumlari yuklenemedi.", code: "upstream-error" } },
         { status: upstreamResponse.status },
       );
     }
 
-    return NextResponse.json(payload);
+    // Normalize backend { data, meta } to UI { items, page, limit, total, totalPages }
+    const items = rawPayload?.data ?? rawPayload?.items ?? [];
+    const meta = rawPayload?.meta ?? {};
+    const totalCount = typeof meta.count === "number" ? meta.count : (Array.isArray(items) ? items.length : 0);
+    const limitNum = typeof meta.limit === "number" ? meta.limit : 20;
+    const normalizedPayload = {
+      items: Array.isArray(items) ? items : [],
+      page: 1,
+      limit: limitNum,
+      total: totalCount,
+      totalPages: Math.max(1, Math.ceil(totalCount / limitNum)),
+    };
+
+    return NextResponse.json(normalizedPayload);
   } catch (err) {
     console.error("Admin API /payment-sessions error:", err);
     return NextResponse.json(
@@ -79,3 +94,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = withRateLimit(handler, adminRateLimits.read);

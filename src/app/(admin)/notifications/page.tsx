@@ -27,6 +27,7 @@ export default function NotificationsPage() {
         body: string;
         type?: string;
         targetUserIds?: string[];
+        confirmBroadcast?: boolean;
       } = { title: title.trim(), body: body.trim(), type };
 
       if (targetMode === "specific") {
@@ -40,6 +41,8 @@ export default function NotificationsPage() {
           return;
         }
         payload.targetUserIds = ids;
+      } else {
+        payload.confirmBroadcast = true;
       }
 
       const res = await sendNotification(payload);
@@ -226,7 +229,7 @@ export default function NotificationsPage() {
               <strong className="text-gray-400">Tum kullanicilar:</strong> Sisteme kayitli herkese bildirim gonderir.
             </p>
             <p>
-              <strong className="text-gray-400">Belirli kullanicilar:</strong> Sadece girdiginiz ID'lere gonderir.
+              <strong className="text-gray-400">Belirli kullanicilar:</strong> Sadece girdiginiz ID&apos;lere gonderir.
             </p>
             <p>
               <strong className="text-gray-400">Not:</strong> Bildirimler kullanicilarin bildirim panellerinde gorunecektir.

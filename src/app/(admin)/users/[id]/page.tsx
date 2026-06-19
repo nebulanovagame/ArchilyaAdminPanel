@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Coins, MinusCircle, TrendingUp } from "lucide-react";
 import toast from "react-hot-toast";
@@ -10,11 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { getUser, grantCredits, deductCredits } from "@/lib/api/admin-client";
+import type { UserRecord } from "@/lib/api/types";
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showGrant, setShowGrant] = useState(false);
@@ -22,23 +27,58 @@ export default function UserDetailPage() {
   const [creditAmount, setCreditAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const loadUser = () => {
+  const loadUser = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    getUser(id).then(setUser).catch((e) => setError(e.message)).finally(() => setLoading(false));
-  };
+    setError(null);
 
-  useEffect(loadUser, [id]);
+    try {
+      const nextUser = await getUser(id);
+      setUser(nextUser);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError, "Kullanici yuklenirken hata olustu."));
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!id) return;
+
+    getUser(id)
+      .then((nextUser) => {
+        if (!cancelled) {
+          setUser(nextUser);
+          setError(null);
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) {
+          setError(getErrorMessage(loadError, "Kullanici yuklenirken hata olustu."));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const handleGrant = async () => {
     const amount = parseInt(creditAmount, 10);
     if (!amount || amount <= 0) { toast.error("Gecerli bir miktar girin."); return; }
     setSubmitting(true);
     try {
-      await grantCredits(id!, amount, "Admin panelinden kredi yuklemesi");
+      await grantCredits(id, amount, "Admin panelinden kredi yuklemesi");
       toast.success(`${amount} kredi yuklendi!`);
-      setShowGrant(false); setCreditAmount(""); loadUser();
-    } catch (e: any) { toast.error(e.message || "Hata."); }
+      setShowGrant(false); setCreditAmount(""); void loadUser();
+    } catch (grantError: unknown) { toast.error(getErrorMessage(grantError, "Hata.")); }
     finally { setSubmitting(false); }
   };
 
@@ -51,10 +91,10 @@ export default function UserDetailPage() {
     }
     setSubmitting(true);
     try {
-      await deductCredits(id!, amount, "Admin panelinden kredi dusumu");
+      await deductCredits(id, amount, "Admin panelinden kredi dusumu");
       toast.success(`${amount} kredi silindi!`);
-      setShowDeduct(false); setCreditAmount(""); loadUser();
-    } catch (e: any) { toast.error(e.message || "Hata."); }
+      setShowDeduct(false); setCreditAmount(""); void loadUser();
+    } catch (deductError: unknown) { toast.error(getErrorMessage(deductError, "Hata.")); }
     finally { setSubmitting(false); }
   };
 
