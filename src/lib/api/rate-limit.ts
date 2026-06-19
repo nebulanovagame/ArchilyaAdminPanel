@@ -138,7 +138,7 @@ async function checkRateLimitWithStore(
 
   if (!config) {
     if (process.env.NODE_ENV === "production") {
-      throw new Error(REDIS_UNAVAILABLE_MESSAGE);
+      console.warn("[admin-rate-limit] Redis not configured, using in-memory fallback");
     }
 
     return checkRateLimit(request, options);
