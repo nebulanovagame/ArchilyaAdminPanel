@@ -31,7 +31,7 @@ export interface Totals {
 /* ─── Helpers ─── */
 
 export function fmt(n: number): string {
-  return Math.round(n).toLocaleString('tr-TR');
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
 export function calcPrice(basePrice: number, m2: number): number {

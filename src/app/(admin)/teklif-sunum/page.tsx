@@ -814,6 +814,7 @@ export default function TeklifSunumPage() {
                   <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">Abone Toplamı</p>
                   <p className="mt-1 text-2xl font-serif text-primary drop-shadow-[0_0_12px_rgba(198,168,124,0.2)]">{fmt(totals.subscriber)} TL</p>
                   {totals.extraDiscount > 0 && <p className="text-[9px] text-amber-400 mt-0.5">Ek indirim: -{fmt(totals.extraDiscount)} TL</p>}
+                  <p className="text-[9px] text-gray-600 mt-1.5">* Tüm fiyatlara KDV dahil değildir.</p>
                 </div>
 
                 {/* Distribution */}
@@ -845,7 +846,8 @@ export default function TeklifSunumPage() {
                 <div className="rounded-sm border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-[10px] leading-relaxed text-gray-400 backdrop-blur-sm">
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70">Fiyatlandırma:</span><br />
                   Proje büyüklüğüne göre ölçeklenen dinamik fiyatlandırma uygulanır. Büyük projelerde m² birim fiyatı avantajlı hale gelir.<br />
-                  Abone fiyatları, her hizmetin standart tutarına <strong className="text-primary">%20 indirim</strong> uygulanarak hesaplanmıştır.
+                  Abone fiyatları, her hizmetin standart tutarına <strong className="text-primary">%20 indirim</strong> uygulanarak hesaplanmıştır.<br />
+                  <span className="text-gray-500">* Tüm fiyatlara KDV dahil değildir.</span>
                   {totals.extraDiscount > 0 && <> · Ek indirim: <strong className="text-amber-400">-{fmt(totals.extraDiscount)} TL</strong></>}
                 </div>
               </div>
