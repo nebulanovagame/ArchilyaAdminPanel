@@ -31,7 +31,7 @@ export interface Totals {
 /* ─── Helpers ─── */
 
 export function fmt(n: number): string {
-  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return Math.round(n).toLocaleString('tr-TR');
 }
 
 export function calcPrice(basePrice: number, m2: number): number {
@@ -47,7 +47,7 @@ export function unitSavingPct(m2: number): number {
 export function calcServicePrice(basePrice: number, m2: number): PriceResult | null {
   if (m2 >= 5000) return null;
   const total = calcPrice(basePrice, m2);
-  const member = Math.round(total * 0.8);
+  const member = Math.round((total * 0.8) / 100) * 100;
   const unit = Math.round(total / m2);
   return { total, member, unit, saving: total - member };
 }
