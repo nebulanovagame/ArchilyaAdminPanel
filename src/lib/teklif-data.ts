@@ -35,7 +35,8 @@ export function fmt(n: number): string {
 }
 
 export function calcPrice(basePrice: number, m2: number): number {
-  return Math.round(basePrice * Math.pow(m2 / 100, 0.8));
+  const raw = basePrice * Math.pow(m2 / 100, 0.8);
+  return Math.round(raw / 100) * 100;
 }
 
 export function unitSavingPct(m2: number): number {

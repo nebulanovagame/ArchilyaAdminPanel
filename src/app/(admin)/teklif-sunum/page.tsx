@@ -846,7 +846,7 @@ export default function TeklifSunumPage() {
                 <div className="rounded-sm border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-[10px] leading-relaxed text-gray-400 backdrop-blur-sm">
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70">Fiyatlandırma:</span><br />
                   Proje büyüklüğüne göre ölçeklenen dinamik fiyatlandırma uygulanır. Büyük projelerde m² birim fiyatı avantajlı hale gelir.<br />
-                  Abone fiyatları, her hizmetin standart tutarına <strong className="text-primary">%20 indirim</strong> uygulanarak hesaplanmıştır.<br />
+                  Abone fiyatları, her hizmetin standart tutarına <strong className="text-primary">%20 indirim</strong> uygulanarak hesaplanmıştır. Tüm fiyatlar en yakın 100 TL'ye yuvarlanmıştır.<br />
                   <span className="text-gray-500">* Tüm fiyatlara KDV dahil değildir.</span>
                   {totals.extraDiscount > 0 && <> · Ek indirim: <strong className="text-amber-400">-{fmt(totals.extraDiscount)} TL</strong></>}
                 </div>
