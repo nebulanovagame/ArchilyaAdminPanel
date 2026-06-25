@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { toPng } from "dom-to-image-more";
 import {
-  Sparkles, Check, Crown, Printer, ArrowLeft, Plus, Minus,
+  Sparkles, Check, Crown, ImageDown, ArrowLeft, Plus, Minus,
   LayoutGrid, Layers, Trees, Cpu, Film,
   BadgeCheck, Glasses,   ShieldHalf,
 } from "lucide-react";
 
 import {
-  ARCH_SERVICES, VR_SERVICES, ALL_SERVICES,
+  ALL_SERVICES, SERVICE_GROUPS, getServicesByGroup,
   fmt, calcServicePrice, unitSavingPct, getServiceM2,
   DISTRIBUTION_COLORS, type Service,
 } from "@/lib/teklif-data";
@@ -69,7 +70,7 @@ const ANIM_STYLES = `
 
 const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
   LayoutGrid, Layers, Trees, Cpu, Film, BadgeCheck, Glasses,
-  Sparkles, Check, Crown, ShieldHalf, ArrowLeft, Printer, Plus, Minus,
+  Sparkles, Check, Crown, ShieldHalf, ArrowLeft, ImageDown, Plus, Minus,
 };
 
 /* ─── Icon Component ─── */
@@ -264,7 +265,7 @@ function ServiceSelectCard({
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-1.5">
               <button
-                onClick={(e) => { e.stopPropagation(); onM2Change(Math.max(10, m2 - 10)); }}
+                onClick={(e) => { e.stopPropagation(); onM2Change(Math.max(1, m2 - 10)); }}
                 className="flex h-7 w-7 items-center justify-center rounded-sm border border-white/10 bg-white/[0.03] text-gray-400 hover:text-white hover:border-white/30 transition-all duration-200 cursor-pointer"
               >
                 <Minus className="h-3 w-3" />
@@ -273,20 +274,19 @@ function ServiceSelectCard({
                 <input
                   type="number"
                   value={m2}
-                  min={10}
-                  max={5000}
-                  step={10}
                   onClick={(e) => e.stopPropagation()}
                   onChange={(e) => {
-                    const v = parseInt(e.target.value) || 10;
-                    onM2Change(Math.min(5000, Math.max(10, v)));
+                    const raw = e.target.value;
+                    if (raw === '' || raw === '-') return;
+                    const v = parseInt(raw);
+                    if (!isNaN(v)) onM2Change(v);
                   }}
                   className="w-20 text-center bg-white/5 border border-white/10 rounded-sm px-2 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-primary/50 focus:bg-primary/[0.04] transition-all duration-200 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-gray-500 pointer-events-none font-medium">m²</span>
               </div>
               <button
-                onClick={(e) => { e.stopPropagation(); onM2Change(Math.min(5000, m2 + 10)); }}
+                onClick={(e) => { e.stopPropagation(); onM2Change(m2 + 10); }}
                 className="flex h-7 w-7 items-center justify-center rounded-sm border border-white/10 bg-white/[0.03] text-gray-400 hover:text-white hover:border-white/30 transition-all duration-200 cursor-pointer"
               >
                 <Plus className="h-3 w-3" />
@@ -375,6 +375,75 @@ function ServiceSelectCard({
   );
 }
 
+function OdemeKosullari({ subscriberTotal, isCustom }: { subscriberTotal: number; isCustom: boolean }) {
+  const half = Math.round(subscriberTotal / 2);
+  return (
+    <div className="anim-fade-in mt-3 rounded-sm border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-surface/70 to-surface/90 p-5 text-xs leading-relaxed text-gray-400 backdrop-blur-sm shadow-[0_0_30px_rgba(198,168,124,0.04)]" style={{ animationDelay: '0.55s' }}>
+      {/* Header */}
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+          <ShieldHalf className="h-3 w-3 text-primary" />
+        </span>
+        <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-primary">Ödeme Koşulları</span>
+      </div>
+
+      <div className="space-y-2">
+        {!isCustom && subscriberTotal > 0 ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="rounded-sm border border-primary/15 bg-primary/[0.04] px-3 py-2.5 text-center">
+                <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 font-semibold mb-1">Ön Ödeme (%50)</p>
+                <p className="text-base font-serif text-primary font-bold">{fmt(half)} TL</p>
+              </div>
+              <div className="rounded-sm border border-primary/15 bg-primary/[0.04] px-3 py-2.5 text-center">
+                <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 font-semibold mb-1">Teslimde (%50)</p>
+                <p className="text-base font-serif text-primary font-bold">{fmt(half)} TL</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500/80">
+              Toplam bedelin <strong className="text-gray-100">%50&apos;si ({fmt(half)} TL)</strong> sipariş onayında ön ödeme olarak,
+              kalan <strong className="text-gray-100">%50 bakiye ({fmt(half)} TL)</strong> işin teslimi sırasında tahsil edilir.
+            </p>
+          </>
+        ) : (
+          <p className="text-[10px] text-gray-500/80">
+            Toplam bedelin <strong className="text-gray-100">%50&apos;si</strong> sipariş onayında ön ödeme olarak,
+            kalan <strong className="text-gray-100">%50 bakiye</strong> işin teslimi sırasında tahsil edilir.
+          </p>
+        )}
+
+        <p className="text-[10px] text-gray-500/80">
+          Ödemeler, banka havalesi veya EFT yoluyla Archilya tarafından bildirilecek banka hesabına yapılır.
+          Tüm fiyatlara KDV dahil değildir.
+        </p>
+
+        <p className="text-[10px] text-gray-500/80">
+          <span className="text-primary text-[9px] font-bold uppercase tracking-[0.2em] mr-1">◷</span>
+          Teslim süresi, ön ödemenin alınmasını takiben <strong className="text-gray-100">3 (üç) haftadır</strong>.
+          Revizyon süreçleri bu süreye dahil değildir.
+        </p>
+      </div>
+
+      {/* Sözleşme kabul ibaresi */}
+      <div className="mt-3 rounded-sm border border-primary/20 bg-primary/[0.04] px-3 py-2.5">
+        <p className="text-[10px] leading-relaxed text-gray-300">
+          <span className="text-primary text-[9px] font-bold uppercase tracking-[0.2em] mr-1">⚖</span>
+          Ödemenin gerçekleştirilmesiyle birlikte
+          {' '}<strong className="text-gray-100">Archilya Mimarlık Hizmet Sözleşmesi</strong> hükümleri
+          taraflarca kabul edilmiş sayılır. Sözleşme metnine
+          {' '}<a
+            href="https://archilya.com/mimarlik-hizmet-sozlesmesi"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:text-white underline underline-offset-2 decoration-primary/30 transition-colors"
+          >archilya.com/mimarlik-hizmet-sozlesmesi</a>
+          {' '}adresinden ulaşabilirsiniz.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Divider({ label, color }: { label: string; color: 'primary' | 'amber' }) {
   const isAmber = color === 'amber';
   const lineCls = isAmber ? 'via-amber-400/20 to-amber-400/35' : 'via-primary/20 to-primary/35';
@@ -407,7 +476,6 @@ export default function TeklifSunumPage() {
   const [extraDiscountPercent, setExtraDiscountPercent] = useState(0);
   const [extraDiscountAmount, setExtraDiscountAmount] = useState(0);
   const [revisionFee, setRevisionFee] = useState(0);
-  const [exportOrientation, setExportOrientation] = useState<'portrait' | 'landscape'>('portrait');
 
 
   const selectedServices = useMemo(() => ALL_SERVICES.filter((s) => selectedIds.has(s.id)), [selectedIds]);
@@ -481,7 +549,40 @@ export default function TeklifSunumPage() {
     [selectedServices, serviceM2s, effectivePrices],
   );
 
-  const handlePrint = useCallback(() => { window.print(); }, []);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportPNG = useCallback(async () => {
+    const el = document.getElementById('teklif-preview-content');
+    if (!el) return;
+    setExporting(true);
+    try {
+      const dataUrl = await toPng(el, {
+        quality: 1,
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+        },
+        filter: (node) => {
+          // Skip background glow/fixed elements inside the capture area
+          if (node instanceof HTMLElement) {
+            const cls = node.className || '';
+            if (typeof cls === 'string' && cls.includes('pointer-events-none')) return false;
+          }
+          return true;
+        },
+      });
+      const link = document.createElement('a');
+      link.download = `Archilya-Teklif-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('PNG export failed', err);
+    } finally {
+      setExporting(false);
+    }
+  }, []);
   const handleGenerate = useCallback(() => {
     if (selectedServices.length === 0) return;
     setMode('preview');
@@ -536,43 +637,31 @@ export default function TeklifSunumPage() {
             </p>
           </div>
 
-          {/* Service Selection */}
+          {/* Service Selection by Group */}
           <div className="space-y-8">
-            <div>
-              <Divider label="Mimari Hizmetler" color="primary" />
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {ARCH_SERVICES.map((s) => (
-                  <ServiceSelectCard
-                    key={s.id}
-                    service={s}
-                    m2={getServiceM2(s, serviceM2s)}
-                    selected={selectedIds.has(s.id)}
-                    onToggle={() => toggleService(s.id)}
-                    onM2Change={(val) => updateM2(s.id, val)}
-                    specialPrice={specialPrices[s.id] ?? null}
-                    onSpecialPriceChange={(val) => setSpecialPrices((prev) => ({ ...prev, [s.id]: val }))}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <Divider label="VR & Dijital Sunum" color="amber" />
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {VR_SERVICES.map((s) => (
-                  <ServiceSelectCard
-                    key={s.id}
-                    service={s}
-                    m2={getServiceM2(s, serviceM2s)}
-                    selected={selectedIds.has(s.id)}
-                    onToggle={() => toggleService(s.id)}
-                    onM2Change={(val) => updateM2(s.id, val)}
-                    specialPrice={specialPrices[s.id] ?? null}
-                    onSpecialPriceChange={(val) => setSpecialPrices((prev) => ({ ...prev, [s.id]: val }))}
-                  />
-                ))}
-              </div>
-            </div>
+            {SERVICE_GROUPS.map((group) => {
+              const services = getServicesByGroup(group.key);
+              if (services.length === 0) return null;
+              return (
+                <div key={group.key}>
+                  <Divider label={group.label} color={group.color} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {services.map((s) => (
+                      <ServiceSelectCard
+                        key={s.id}
+                        service={s}
+                        m2={getServiceM2(s, serviceM2s)}
+                        selected={selectedIds.has(s.id)}
+                        onToggle={() => toggleService(s.id)}
+                        onM2Change={(val) => updateM2(s.id, val)}
+                        specialPrice={specialPrices[s.id] ?? null}
+                        onSpecialPriceChange={(val) => setSpecialPrices((prev) => ({ ...prev, [s.id]: val }))}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Advanced Options (Extra Discount + Revision Fee) */}
@@ -669,6 +758,9 @@ export default function TeklifSunumPage() {
                 )}
               </div>
 
+              <p className="hidden xl:block text-[8px] uppercase tracking-[0.2em] text-gray-600 max-w-[160px] leading-relaxed">
+                Ödeme koşulları ve sözleşme bilgisi sunum önizlemesinde yer alır.
+              </p>
               <button
                 onClick={handleGenerate}
                 disabled={selectedServices.length === 0}
@@ -697,7 +789,7 @@ export default function TeklifSunumPage() {
       <style>{ANIM_STYLES}</style>
 
       {/* Floating controls */}
-      <div className="fixed top-16 right-4 z-50 flex items-center gap-2 print:hidden">
+      <div className="fixed top-16 right-4 z-50 flex items-center gap-2">
         <button
           onClick={() => setMode('builder')}
           className="flex items-center gap-2 px-4 py-2.5 rounded-sm border border-white/10 bg-surface/80 backdrop-blur-md text-[10px] font-bold uppercase tracking-[0.25em] text-gray-300 hover:text-white hover:border-white/20 transition-all cursor-pointer"
@@ -706,33 +798,18 @@ export default function TeklifSunumPage() {
           Düzenle
         </button>
 
-        {/* Orientation toggle */}
-        <div className="flex rounded-sm border border-white/10 overflow-hidden">
-          <button
-            onClick={() => setExportOrientation('portrait')}
-            className={`px-3 py-2.5 text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-              exportOrientation === 'portrait' ? 'bg-primary text-black' : 'bg-surface/80 text-gray-400 hover:text-white'
-            }`}
-          >
-            Dikey
-          </button>
-          <button
-            onClick={() => setExportOrientation('landscape')}
-            className={`px-3 py-2.5 text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-              exportOrientation === 'landscape' ? 'bg-primary text-black' : 'bg-surface/80 text-gray-400 hover:text-white'
-            }`}
-          >
-            Yatay
-          </button>
-        </div>
-
         <button
-          onClick={handlePrint}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-sm border border-primary/30 bg-primary/10 backdrop-blur-md text-[10px] font-bold uppercase tracking-[0.25em] text-primary hover:bg-primary/20 transition-all cursor-pointer"
-          title="PDF/PNG olarak kaydet (tarayıcı yazdırma)"
+          onClick={handleExportPNG}
+          disabled={exporting}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-sm border border-primary/30 backdrop-blur-md text-[10px] font-bold uppercase tracking-[0.25em] transition-all cursor-pointer ${
+            exporting
+              ? 'bg-primary/20 text-primary/60 border-primary/10 cursor-wait'
+              : 'bg-primary/10 text-primary hover:bg-primary/20 border-primary/30'
+          }`}
+          title="Teklifi PNG olarak kaydet"
         >
-          <Printer className="h-3.5 w-3.5" />
-          PDF / PNG
+          <ImageDown className="h-3.5 w-3.5" />
+          {exporting ? 'Kaydediliyor...' : 'PNG'}
         </button>
       </div>
 
@@ -751,7 +828,7 @@ export default function TeklifSunumPage() {
       />
 
       <main className="relative z-10">
-        <section className="mx-auto max-w-[1600px] px-3 md:px-4 py-8 md:py-10">
+        <section id="teklif-preview-content" className="mx-auto max-w-[1600px] px-3 md:px-4 py-8 md:py-10">
           {/* Header */}
           <div className="mb-6 text-center anim-fade-in-up">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 mb-4">
@@ -767,6 +844,17 @@ export default function TeklifSunumPage() {
               sonuçlar en yakın tam sayıya yuvarlanmıştır.
               Abone indirimi tüm standart fiyatlar üzerinden <strong className="text-primary">%20</strong> olarak uygulanır.
             </p>
+          </div>
+
+          {/* Teklif Bilgisi */}
+          <div className="mb-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-[10px] text-gray-500 anim-fade-in" style={{ animationDelay: '0.08s' }}>
+            <span>
+              Teklif Tarihi: <strong className="text-gray-300 font-medium">{new Date().toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+            </span>
+            <span className="hidden sm:inline text-gray-700">|</span>
+            <span>
+              Geçerlilik: Bu teklif, düzenlenme tarihinden itibaren <strong className="text-gray-300 font-medium">14 (on dört) gün</strong> süreyle geçerlidir.
+            </span>
           </div>
 
           {/* Summary Stats (only if no custom m2) */}
@@ -846,7 +934,7 @@ export default function TeklifSunumPage() {
                 <div className="rounded-sm border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-[10px] leading-relaxed text-gray-400 backdrop-blur-sm">
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70">Fiyatlandırma:</span><br />
                   Proje büyüklüğüne göre ölçeklenen dinamik fiyatlandırma uygulanır. Büyük projelerde m² birim fiyatı avantajlı hale gelir.<br />
-                  Abone fiyatları, her hizmetin standart tutarına <strong className="text-primary">%20 indirim</strong> uygulanarak hesaplanmıştır. Tüm fiyatlar en yakın 100 TL'ye yuvarlanmıştır.<br />
+                  Abone fiyatları, her hizmetin standart tutarına <strong className="text-primary">%20 indirim</strong> uygulanarak hesaplanmıştır. Tüm fiyatlar en yakın 100 TL&apos;ye yuvarlanmıştır.<br />
                   <span className="text-gray-500">* Tüm fiyatlara KDV dahil değildir.</span>
                   {totals.extraDiscount > 0 && <> · Ek indirim: <strong className="text-amber-400">-{fmt(totals.extraDiscount)} TL</strong></>}
                 </div>
@@ -877,27 +965,12 @@ export default function TeklifSunumPage() {
               {revisionFee > 0 && <> · Ek revizyon ücreti revizyon başına <strong className="text-amber-400">{fmt(revisionFee)} TL</strong> olarak eklenir</>}
             </p>
           </div>
+
+          {/* Ödeme Koşulları */}
+          <OdemeKosullari subscriberTotal={totals.subscriber} isCustom={isCustom} />
         </section>
       </main>
 
-      <style>{`
-        @media print {
-          @page { margin: 1cm; size: A4 ${exportOrientation}; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          html, body { background: #0f1115 !important; min-height: 100%; }
-          body > div { background: #0f1115; }
-          .fixed { display: none !important; }
-          .pointer-events-none { display: none !important; }
-          [class*="blur-"] { display: none !important; }
-          [class*="backdrop-blur"] { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-          [class*="shadow-"] { box-shadow: none !important; }
-          .anim-fade-in-up, .anim-fade-in { opacity: 1 !important; animation: none !important; transform: none !important; }
-          section { padding-top: 0.5rem !important; }
-          .grid { break-inside: avoid; }
-          h1, h2, h3, h4 { break-after: avoid; }
-          img, svg { break-inside: avoid; }
-        }
-      `}</style>
     </div>
   );
 }
