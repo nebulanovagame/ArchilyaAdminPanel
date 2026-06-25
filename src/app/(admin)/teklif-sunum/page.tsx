@@ -843,11 +843,10 @@ export default function TeklifSunumPage() {
                 })()}
 
                 <div className="rounded-sm border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-[10px] leading-relaxed text-gray-400 backdrop-blur-sm">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70">Formül referansı:</span><br />
-                  <strong className="text-gray-100">Fiyat = Taban Fiyat × (m² / 100)^0.8</strong>.<br />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70">Fiyatlandırma:</span><br />
+                  Proje büyüklüğüne göre ölçeklenen dinamik fiyatlandırma uygulanır. Büyük projelerde m² birim fiyatı avantajlı hale gelir.<br />
                   Abone fiyatları, her hizmetin standart tutarına <strong className="text-primary">%20 indirim</strong> uygulanarak hesaplanmıştır.
                   {totals.extraDiscount > 0 && <> · Ek indirim: <strong className="text-amber-400">-{fmt(totals.extraDiscount)} TL</strong></>}
-                  {revisionFee > 0 && <> · Ek revizyon ücreti revizyon başına <strong className="text-amber-400">{fmt(revisionFee)} TL</strong> olarak eklenir</>}
                 </div>
               </div>
             )}
@@ -855,17 +854,24 @@ export default function TeklifSunumPage() {
 
           {/* Footer Note */}
           <div className="anim-fade-in mt-6 rounded-sm border border-white/10 bg-surface/55 p-4 text-xs leading-relaxed text-gray-400 backdrop-blur-sm" style={{ animationDelay: '0.4s' }}>
-            <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-primary font-bold">Hesap Notu</p>
+            <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-primary font-bold">Fiyatlandırma Detayı</p>
             <p>
               {serviceData.map((d, i) => (
                 <span key={d.service.id}>
                   {i > 0 && ' · '}
-                  <strong className="text-gray-100">{d.service.name}</strong> — {fmt(d.m2)} m², taban fiyat <strong className="text-gray-100">{fmt(d.service.basePrice)} TL</strong>
+                  <strong className="text-gray-100">{d.service.name}</strong> — {fmt(d.m2)} m² alan üzerinden hesaplanmıştır
                 </span>
               ))}
-              . Tüm hizmetlerde sonuçlar <strong className="text-gray-100">Math.round</strong> mantığıyla en yakın tam sayıya yuvarlanmış,
-              ardından abone kullanıcılar için standart tutar üzerinden <strong className="text-primary">%20 indirim</strong> uygulanmıştır.
+              . Tüm fiyatlar en yakın tam sayıya yuvarlanmış olup, abonelerimize özel <strong className="text-primary">%20 indirim</strong> uygulanmıştır.
               {totals.extraDiscount > 0 && <> · <strong className="text-amber-400">Ek indirim: -{fmt(totals.extraDiscount)} TL</strong></>}
+            </p>
+          </div>
+
+          {/* Revision Policy */}
+          <div className="anim-fade-in mt-3 rounded-sm border border-amber-400/15 bg-amber-400/[0.04] p-4 text-xs leading-relaxed text-gray-400 backdrop-blur-sm" style={{ animationDelay: '0.5s' }}>
+            <p className="mb-1 text-[9px] uppercase tracking-[0.28em] text-amber-400/70 font-bold">Revizyon Politikası</p>
+            <p>
+              Her hizmet kapsamında <strong className="text-gray-100">2 adet kapsamlı revizyon hakkı ücretsizdir</strong>. Küçük rötuşlar (renk, malzeme, obje değişikliği) ücretsizdir ve revizyon hakkından düşülmez. 2 ücretsiz revizyon hakkı aşıldığında, sonraki her kapsamlı revizyon için <strong className="text-amber-400">{revisionFee > 0 ? fmt(revisionFee) + ' TL' : '₺1.500 TL'}</strong> ücret yansıtılır.
               {revisionFee > 0 && <> · Ek revizyon ücreti revizyon başına <strong className="text-amber-400">{fmt(revisionFee)} TL</strong> olarak eklenir</>}
             </p>
           </div>
