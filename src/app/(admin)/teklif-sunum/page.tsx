@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { toPng } from "dom-to-image-more";
+import { toJpeg } from "dom-to-image-more";
 import {
   Sparkles, Check, Crown, ImageDown, ArrowLeft, Plus, Minus,
   LayoutGrid, Layers, Trees, Cpu, Film,
@@ -64,6 +64,9 @@ const ANIM_STYLES = `
     pointer-events: none;
     mix-blend-mode: soft-light;
   }
+  /* Export cleanup: disable sheen gradient overlay + backdrop blur in capture */
+  ._sheen-export-hidden::before { display: none !important; }
+  ._blur-export-hidden { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 `;
 
 /* ─── Icon Map ─── */
@@ -91,13 +94,14 @@ function initM2Map(): Record<string, number> {
 /* ─── Sub-components ─── */
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: 'primary' | 'emerald' }) {
-  const borderCls = accent === 'primary' ? 'border-primary/20' : accent === 'emerald' ? 'border-emerald-400/25' : 'border-white/[0.06]';
-  const textCls = accent === 'primary' ? 'text-primary' : accent === 'emerald' ? 'text-emerald-400' : 'text-white';
+  const borderCls = accent === 'primary' ? 'border-primary/40' : accent === 'emerald' ? 'border-emerald-400/40' : 'border-white/20';
+  const textCls = accent === 'primary' ? 'text-primary' : accent === 'emerald' ? 'text-emerald-300' : 'text-white';
+  const subCls = accent === 'emerald' ? 'text-emerald-200/95' : accent === 'primary' ? 'text-primary/90' : 'text-gray-200/95';
   return (
-    <div className={`panel-sheen rounded-sm border ${borderCls} bg-surface/60 px-4 py-4 backdrop-blur-xl transition-all duration-300 hover:border-white/15`}>
-      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.3em] text-gray-500">{label}</p>
-      <p className={`text-2xl font-serif tracking-tight ${textCls}`}>{value}</p>
-      {sub && <p className="text-[9px] text-gray-500 mt-1 font-medium leading-tight">{sub}</p>}
+    <div style={{ background: '#1a1c23' }} className={`rounded-sm border ${borderCls} px-4 py-4 shadow-[0_18px_55px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.08)] transition-all duration-300 hover:border-white/20`}>
+      <p className="mb-2 text-[11px] font-black uppercase tracking-[0.26em] text-gray-300/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">{label}</p>
+      <p className={`text-3xl font-serif font-bold tracking-tight tabular-nums drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] ${textCls}`}>{value}</p>
+      {sub && <p className={`mt-2 text-[11px] font-semibold leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.75)] ${subCls}`}>{sub}</p>}
     </div>
   );
 }
@@ -551,13 +555,24 @@ export default function TeklifSunumPage() {
 
   const [exporting, setExporting] = useState(false);
 
-  const handleExportPNG = useCallback(async () => {
+  const handleExportJPEG = useCallback(async () => {
     const el = document.getElementById('teklif-preview-content');
     if (!el) return;
     setExporting(true);
+
+    // Temiz export için: panel-sheen gradient overlay + backdrop-blur
+    // geçici olarak kaldır (dom-to-image-more bu etkileri bozuk render eder)
+    const sheenNodes = el.querySelectorAll<HTMLElement>('.panel-sheen');
+    const blurNodes = el.querySelectorAll<HTMLElement>('[class*="backdrop-blur-"]');
+    sheenNodes.forEach((n) => n.classList.add('_sheen-export-hidden'));
+    blurNodes.forEach((n) => n.classList.add('_blur-export-hidden'));
+    // _blur-export-hidden inline style eki
+    blurNodes.forEach((n) => n.style.backdropFilter = 'none');
+
     try {
-      const dataUrl = await toPng(el, {
-        quality: 1,
+      const dataUrl = await toJpeg(el, {
+        quality: 0.92,
+        bgcolor: '#0f1115',
         width: el.scrollWidth,
         height: el.scrollHeight,
         style: {
@@ -568,18 +583,24 @@ export default function TeklifSunumPage() {
           // Skip background glow/fixed elements inside the capture area
           if (node instanceof HTMLElement) {
             const cls = node.className || '';
-            if (typeof cls === 'string' && cls.includes('pointer-events-none')) return false;
+            if (typeof cls === 'string' && (cls.includes('pointer-events-none') || cls.includes('noise-overlay'))) return false;
           }
           return true;
         },
       });
       const link = document.createElement('a');
-      link.download = `Archilya-Teklif-${new Date().toISOString().slice(0, 10)}.png`;
+      link.download = `Archilya-Teklif-${new Date().toISOString().slice(0, 10)}.jpg`;
       link.href = dataUrl;
       link.click();
     } catch (err) {
-      console.error('PNG export failed', err);
+      console.error('JPEG export failed', err);
     } finally {
+      // restore
+      sheenNodes.forEach((n) => n.classList.remove('_sheen-export-hidden'));
+      blurNodes.forEach((n) => {
+        n.classList.remove('_blur-export-hidden');
+        n.style.backdropFilter = '';
+      });
       setExporting(false);
     }
   }, []);
@@ -799,17 +820,17 @@ export default function TeklifSunumPage() {
         </button>
 
         <button
-          onClick={handleExportPNG}
+          onClick={handleExportJPEG}
           disabled={exporting}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-sm border border-primary/30 backdrop-blur-md text-[10px] font-bold uppercase tracking-[0.25em] transition-all cursor-pointer ${
             exporting
               ? 'bg-primary/20 text-primary/60 border-primary/10 cursor-wait'
               : 'bg-primary/10 text-primary hover:bg-primary/20 border-primary/30'
           }`}
-          title="Teklifi PNG olarak kaydet"
+          title="Teklifi JPEG olarak kaydet (koyu arka plan)"
         >
           <ImageDown className="h-3.5 w-3.5" />
-          {exporting ? 'Kaydediliyor...' : 'PNG'}
+          {exporting ? 'Kaydediliyor...' : 'JPEG'}
         </button>
       </div>
 
@@ -828,7 +849,7 @@ export default function TeklifSunumPage() {
       />
 
       <main className="relative z-10">
-        <section id="teklif-preview-content" className="mx-auto max-w-[1600px] px-3 md:px-4 py-8 md:py-10">
+        <section id="teklif-preview-content" className="mx-auto max-w-[1600px] px-3 md:px-4 py-8 md:py-10" style={{ background: '#0f1115' }}>
           {/* Header */}
           <div className="mb-6 text-center anim-fade-in-up">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 mb-4">
