@@ -2,7 +2,6 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
-import { writeAdminAuditLog } from "@/lib/api/audit";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 import type { UserActivityEntry, UserActivityResponse } from "@/lib/api/types";
 import {
@@ -196,15 +195,6 @@ async function handler(
       : allEntries;
 
     const pagedEntries = filteredEntries.slice(offset, offset + limit);
-
-    await writeAdminAuditLog(supabase, {
-      actorId: guard.uid,
-      actorEmail: guard.email,
-      action: "viewUserActivity",
-      resource: "user_activity",
-      resourceId: userId,
-      details: { limit, offset, typeFilter },
-    });
 
     const response: UserActivityResponse = {
       entries: pagedEntries,
