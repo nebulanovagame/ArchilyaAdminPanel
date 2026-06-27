@@ -13,18 +13,32 @@ async function handler(
   try {
     const { id } = await params;
     const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, email, display_name, is_admin, photo_url, created_at, updated_at, credits, subscription_plan, subscription_status, total_spent")
-      .eq("id", id)
-      .single();
 
+    const [profileResult, workspaceResult] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, email, display_name, is_admin, photo_url, created_at, updated_at, credits, subscription_plan, subscription_status, total_spent")
+        .eq("id", id)
+        .single(),
+      supabase
+        .from("workspace_members")
+        .select("workspace_id, workspaces!inner(pool_credits, credits)")
+        .eq("user_id", id),
+    ]);
+
+    const { data, error } = profileResult;
     if (error || !data) {
       return NextResponse.json(
         { error: { message: "Kullanici bulunamadi", code: "not-found" } },
         { status: 404 },
       );
     }
+
+    // Sum workspace pool credits; fallback to profiles.credits
+    const workspaceCredits = (workspaceResult.data || []).reduce((sum, membership) => {
+      const ws = membership.workspaces as { pool_credits?: number | null; credits?: number | null };
+      return sum + (ws?.pool_credits ?? ws?.credits ?? 0);
+    }, 0);
 
     const user = {
       id: data.id,
@@ -35,8 +49,8 @@ async function handler(
       status: "active" as const,
       createdAt: data.created_at || new Date().toISOString(),
       lastSignInAt: null,
-      workspaceCount: 0,
-      credits: data.credits || 0,
+      workspaceCount: (workspaceResult.data || []).length,
+      credits: workspaceCredits || Number(data.credits) || 0,
       totalCreditsUsed: Number(data.total_spent) || 0,
     };
 
