@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Coins, MinusCircle, TrendingUp } from "lucide-react";
+import { ArrowLeft, Clock, Coins, MinusCircle, TrendingUp } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -169,12 +169,15 @@ export default function UserDetailPage() {
           </div>
         </div>
 
-        <div className="border-t border-white/5 pt-4 flex gap-2">
+        <div className="border-t border-white/5 pt-4 flex gap-2 flex-wrap">
           <Button variant="primary" size="sm" onClick={() => { setShowDeduct(false); setShowGrant(true); setCreditAmount(""); }}>
             <Coins className="w-3.5 h-3.5 mr-1" /> Kredi Yukle
           </Button>
           <Button variant="danger" size="sm" onClick={() => { setShowGrant(false); setShowDeduct(true); setCreditAmount(""); }}>
             <MinusCircle className="w-3.5 h-3.5 mr-1" /> Kredi Sil
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => router.push(`/users/${id}/activity`)}>
+            <Clock className="w-3.5 h-3.5 mr-1" /> Aktivite Goruntule
           </Button>
         </div>
       </Card>

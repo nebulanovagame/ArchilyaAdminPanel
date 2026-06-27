@@ -22,6 +22,7 @@ import type {
   PaymentSessionsResponse,
   SendNotificationPayload,
   SendNotificationResponse,
+  UserActivityResponse,
 } from "./types";
 
 import {
@@ -343,6 +344,20 @@ export async function sendNotification(
     } as Record<string, unknown>,
     () => ({ success: true, sentCount: 1, insertedCount: 1 }),
   );
+}
+
+export async function getUserActivity(
+  userId: string,
+  params?: { limit?: number; offset?: number; type?: string },
+): Promise<UserActivityResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  if (params?.offset) searchParams.set("offset", String(params.offset));
+  if (params?.type) searchParams.set("type", params.type);
+
+  const query = searchParams.toString();
+  const path = `/api/admin/users/${userId}/activity${query ? `?${query}` : ""}`;
+  return fetchLocal<UserActivityResponse>(path);
 }
 
 export async function deductCredits(

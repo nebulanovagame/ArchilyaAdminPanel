@@ -205,9 +205,12 @@ export type AiJobMetrics = {
 export type AuditLogEntry = {
   id: string;
   actorEmail: string;
+  actorName?: string;
   action: string;
+  category?: string;
   resource: string;
   resourceId: string;
+  resourceName?: string;
   details: string | null;
   ipAddress: string | null;
   createdAt: string;
@@ -287,6 +290,36 @@ export type SendNotificationResponse = {
   success: boolean;
   sentCount: number;
   insertedCount: number;
+};
+
+// ─── User Activity Types ──────────────────────────────
+
+export type UserActivityEntry = {
+  id: string;
+  type: "ai_job_created" | "ai_job_completed" | "ai_job_failed" | "credit" | "project" | "workspace" | "settings" | "auth" | "subscription" | "other";
+  action: string;
+  category: string;
+  createdAt: string;
+  /** AI job specific */
+  toolId?: string;
+  resultUrl?: string | null;
+  resultText?: string | null;
+  /** Input image info for side-by-side */
+  inputImageUrl?: string | null;
+  inputImagePath?: string | null;
+  /** Credit specific */
+  creditAmount?: number;
+  creditBalanceAfter?: number;
+  /** Metadata */
+  metadata?: Record<string, unknown>;
+  /** Human-readable summary */
+  summary: string;
+};
+
+export type UserActivityResponse = {
+  entries: UserActivityEntry[];
+  total: number;
+  hasMore: boolean;
 };
 
 export type LauncherRelease = {
