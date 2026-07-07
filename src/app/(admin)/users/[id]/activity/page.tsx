@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { ActivityTimeline } from "./activity-timeline";
+import { getErrorMessage } from "@/lib/errors";
 
 const ACTIVITY_TYPE_OPTIONS = [
   { value: "all", label: "Tüm Aktiviteler" },
@@ -25,10 +26,6 @@ const PAGE_SIZE = 50;
 
 type ActivityTypeFilter = typeof ACTIVITY_TYPE_OPTIONS[number]["value"];
 type LoadMode = "replace" | "append";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
 
 export default function UserActivityPage() {
   const { id } = useParams<{ id: string }>();

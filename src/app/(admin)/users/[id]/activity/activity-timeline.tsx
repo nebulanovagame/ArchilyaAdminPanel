@@ -82,6 +82,32 @@ function getSettingRows(entry: UserActivityEntry): Array<{ readonly label: strin
     .filter((row): row is { readonly label: string; readonly value: string } => row !== null);
 }
 
+function getTemplateName(entry: UserActivityEntry): string | null {
+  const metadata = getMetadataRecord(entry);
+  const jobMetadata = metadata.jobMetadata && typeof metadata.jobMetadata === "object" && !Array.isArray(metadata.jobMetadata)
+    ? metadata.jobMetadata as Record<string, unknown>
+    : {};
+  const promptMetadata = jobMetadata.prompt && typeof jobMetadata.prompt === "object" && !Array.isArray(jobMetadata.prompt)
+    ? jobMetadata.prompt as Record<string, unknown>
+    : {};
+
+  const candidateValues = [
+    metadata.templateName,
+    metadata.promptTemplateName,
+    jobMetadata.templateName,
+    jobMetadata.promptTemplateName,
+    promptMetadata.templateName,
+  ];
+
+  for (const candidateValue of candidateValues) {
+    if (typeof candidateValue === "string" && candidateValue.trim().length > 0) {
+      return candidateValue;
+    }
+  }
+
+  return null;
+}
+
 function SideBySideView({ entry }: { entry: UserActivityEntry }) {
   const [showImages, setShowImages] = useState(false);
   const [inputFailed, setInputFailed] = useState(false);
@@ -152,6 +178,7 @@ function ActivityTimelineEntry({ entry }: { entry: UserActivityEntry }) {
   const config = TYPE_CONFIG[entry.type] || { label: entry.action, variant: "neutral" as const, icon: Clock };
   const Icon = config.icon;
   const settingRows = getSettingRows(entry);
+  const templateName = getTemplateName(entry);
 
   return (
     <div role="listitem" className="relative pl-8 pb-6 last:pb-0">
@@ -191,6 +218,12 @@ function ActivityTimelineEntry({ entry }: { entry: UserActivityEntry }) {
                   </div>
                 ))}
               </dl>
+            )}
+            {templateName && (
+              <div className="mt-3 rounded-sm border border-primary/15 bg-primary/5 p-3">
+                <p className="text-[9px] uppercase tracking-wider text-primary/70">Kullanılan Şablon</p>
+                <p className="mt-1 text-xs text-primary font-mono break-all">{templateName}</p>
+              </div>
             )}
             <SideBySideView entry={entry} />
           </div>

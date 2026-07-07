@@ -11,10 +11,7 @@ import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { getUser, grantCredits, deductCredits } from "@/lib/api/admin-client";
 import type { UserRecord } from "@/lib/api/types";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
+import { getErrorMessage } from "@/lib/errors";
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
