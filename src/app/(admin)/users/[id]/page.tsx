@@ -212,7 +212,7 @@ export default function UserDetailPage() {
                 {feedbacks.map((fb) => (
                   <tr key={fb.id} className="border-b border-white/5 last:border-0">
                     <td className="py-2.5 pr-4 text-gray-400 whitespace-nowrap">
-                      {fb.updated_at ? new Date(fb.updated_at).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" }) : "-"}
+                      {fb.updated_at ? new Date(fb.updated_at).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
                     </td>
                     <td className="py-2.5 pr-4 text-gray-300 font-mono text-xs">{fb.tool_id || "-"}</td>
                     <td className="py-2.5 pr-4">
