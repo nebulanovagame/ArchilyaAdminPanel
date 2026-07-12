@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Clock, ListFilter } from "lucide-react";
-import { getUser, getUserActivity } from "@/lib/api/admin-client";
-import type { UserActivityEntry, UserRecord } from "@/lib/api/types";
+import { ArrowLeft, Clock, ListFilter, ThumbsDown, ThumbsUp } from "lucide-react";
+import { getUser, getUserActivity, getUserFeedback } from "@/lib/api/admin-client";
+import type { FeedbackEntry, UserActivityEntry, UserRecord } from "@/lib/api/types";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -37,6 +38,7 @@ export default function UserActivityPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<ActivityTypeFilter>("all");
+  const [feedbacks, setFeedbacks] = useState<FeedbackEntry[]>([]);
 
   const loadData = useCallback(async (mode: LoadMode = "replace", offset = 0) => {
     if (!id) return;
@@ -46,17 +48,19 @@ export default function UserActivityPage() {
     setError(null);
 
     try {
-      const [userData, activityData] = await Promise.all([
+      const [userData, activityData, feedbackData] = await Promise.all([
         getUser(id),
         getUserActivity(id, {
           limit: PAGE_SIZE,
           offset: append ? offset : 0,
           type: typeFilter === "all" ? undefined : typeFilter,
         }),
+        getUserFeedback(id, { limit: 20 }),
       ]);
       setUser(userData);
       setEntries((currentEntries) => append ? [...currentEntries, ...(activityData.entries || [])] : activityData.entries || []);
       setHasMore(activityData.hasMore);
+      setFeedbacks(feedbackData.entries || []);
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Veri yüklenirken hata oluştu."));
     } finally {
@@ -133,6 +137,57 @@ export default function UserActivityPage() {
           )}
         </>
       )}
+
+      {/* Feedback Activity Section */}
+      <div className="border-t border-white/5 pt-6">
+        <div className="flex items-center gap-3 mb-4">
+          <ThumbsUp className="w-4 h-4 text-emerald-400" />
+          <h2 className="font-serif text-xl text-white italic">Feedback Aktivitesi</h2>
+        </div>
+
+        {feedbacks.length === 0 ? (
+          <p className="text-sm font-sans text-gray-500 py-4">Henüz geri bildirim yok</p>
+        ) : (
+          <div className="space-y-3">
+            {feedbacks.map((fb) => (
+              <div key={fb.id} className="glass-card rounded-sm p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {fb.feedback === "positive" ? (
+                        <Badge variant="success" className="gap-1">
+                          <ThumbsUp className="w-3 h-3" /> Beğeni
+                        </Badge>
+                      ) : (
+                        <Badge variant="danger" className="gap-1">
+                          <ThumbsDown className="w-3 h-3" /> Beğenmedi
+                        </Badge>
+                      )}
+                      {fb.tool_id && (
+                        <span className="text-[10px] uppercase tracking-wider text-gray-500 font-mono">
+                          {fb.tool_id}
+                        </span>
+                      )}
+                    </div>
+                    {fb.feedback_note && (
+                      <p className="text-sm text-gray-300 font-sans mt-1">{fb.feedback_note}</p>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-gray-600 whitespace-nowrap font-sans">
+                    {fb.updated_at ? new Date(fb.updated_at).toLocaleDateString("tr-TR", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }) : "-"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

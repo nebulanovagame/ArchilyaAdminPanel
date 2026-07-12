@@ -248,6 +248,22 @@ export type LegacyOrder = {
   createdAt: string;
 };
 
+// ─── Feedback Types ────────────────────────────────────
+
+export type FeedbackEntry = {
+  id: string;
+  feedback: string | null;
+  feedback_note: string | null;
+  tool_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type FeedbackResponse = {
+  entries: FeedbackEntry[];
+  total: number;
+};
+
 export type LegacyLicense = {
   id: string;
   userEmail: string;

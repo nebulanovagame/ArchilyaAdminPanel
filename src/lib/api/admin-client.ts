@@ -23,6 +23,7 @@ import type {
   SendNotificationPayload,
   SendNotificationResponse,
   UserActivityResponse,
+  FeedbackResponse,
 } from "./types";
 
 import {
@@ -371,4 +372,16 @@ export async function deductCredits(
     { action: "deduct", amount, description, idempotencyKey: crypto.randomUUID() },
     () => ({ success: true, balanceAfter: 40000 }),
   );
+}
+
+export async function getUserFeedback(
+  userId: string,
+  params?: { limit?: number },
+): Promise<FeedbackResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+
+  const query = searchParams.toString();
+  const path = `/api/admin/users/${userId}/feedback${query ? `?${query}` : ""}`;
+  return fetchLocal<FeedbackResponse>(path);
 }

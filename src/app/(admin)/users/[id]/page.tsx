@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Clock, Coins, MinusCircle, TrendingUp } from "lucide-react";
+import { ArrowLeft, Clock, Coins, MinusCircle, ThumbsDown, ThumbsUp, TrendingUp } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
-import { getUser, grantCredits, deductCredits } from "@/lib/api/admin-client";
-import type { UserRecord } from "@/lib/api/types";
+import { getUser, getUserFeedback, grantCredits, deductCredits } from "@/lib/api/admin-client";
+import type { FeedbackEntry, UserRecord } from "@/lib/api/types";
 import { getErrorMessage } from "@/lib/errors";
 
 export default function UserDetailPage() {
@@ -23,6 +23,7 @@ export default function UserDetailPage() {
   const [showDeduct, setShowDeduct] = useState(false);
   const [creditAmount, setCreditAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [feedbacks, setFeedbacks] = useState<FeedbackEntry[]>([]);
 
   const loadUser = useCallback(async () => {
     if (!id) return;
@@ -65,6 +66,14 @@ export default function UserDetailPage() {
     return () => {
       cancelled = true;
     };
+  }, [id]);
+
+  // Fetch feedback entries
+  useEffect(() => {
+    if (!id) return;
+    getUserFeedback(id, { limit: 20 })
+      .then((res) => setFeedbacks(res.entries || []))
+      .catch(() => {});
   }, [id]);
 
   const handleGrant = async () => {
@@ -177,6 +186,55 @@ export default function UserDetailPage() {
             <Clock className="w-3.5 h-3.5 mr-1" /> Aktivite Goruntule
           </Button>
         </div>
+      </Card>
+
+      {/* Feedback History */}
+      <Card>
+        <div className="flex items-center gap-3 mb-4">
+          <ThumbsUp className="w-4 h-4 text-emerald-400" />
+          <CardTitle>Geri Bildirimler</CardTitle>
+        </div>
+
+        {feedbacks.length === 0 ? (
+          <p className="text-sm font-sans text-gray-500 py-4">Henüz geri bildirim yok</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm font-sans">
+              <thead>
+                <tr className="border-b border-white/5">
+                  <th className="text-left text-[10px] uppercase tracking-widest text-gray-500 pb-2 pr-4">Tarih</th>
+                  <th className="text-left text-[10px] uppercase tracking-widest text-gray-500 pb-2 pr-4">Araç</th>
+                  <th className="text-left text-[10px] uppercase tracking-widest text-gray-500 pb-2 pr-4">Beğeni</th>
+                  <th className="text-left text-[10px] uppercase tracking-widest text-gray-500 pb-2">Not</th>
+                </tr>
+              </thead>
+              <tbody>
+                {feedbacks.map((fb) => (
+                  <tr key={fb.id} className="border-b border-white/5 last:border-0">
+                    <td className="py-2.5 pr-4 text-gray-400 whitespace-nowrap">
+                      {fb.updated_at ? new Date(fb.updated_at).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" }) : "-"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-gray-300 font-mono text-xs">{fb.tool_id || "-"}</td>
+                    <td className="py-2.5 pr-4">
+                      {fb.feedback === "positive" ? (
+                        <Badge variant="success" className="gap-1">
+                          <ThumbsUp className="w-3 h-3" /> Beğeni
+                        </Badge>
+                      ) : fb.feedback === "negative" ? (
+                        <Badge variant="danger" className="gap-1">
+                          <ThumbsDown className="w-3 h-3" /> Beğenmedi
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-500">-</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 text-gray-400 max-w-xs truncate">{fb.feedback_note || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
       {/* Grant Modal */}
