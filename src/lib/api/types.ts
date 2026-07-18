@@ -348,6 +348,50 @@ export type LauncherRelease = {
   createdAt: string;
 };
 
+// ─── Partner Firm (Branch / Collaborator) ──────────────
+export type PartnerFirmType = "branch" | "partner";
+export type PartnerFirmCategory = "mimarlik_ofisi" | "muteahhit" | "emlakci" | "diger";
+
+export type PartnerFirmRecord = {
+  id: string;
+  name: string;
+  type: PartnerFirmType;
+  category: PartnerFirmCategory;
+  address: string | null;
+  city: string | null;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  socialMedia: Record<string, string>;
+  logoUrl: string | null;
+  description: string | null;
+  isActive: boolean;
+  orderIndex: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ─── Franchise Application ─────────────────────────────
+export type FranchiseApplicationStatus = "pending" | "contacted" | "qualified" | "rejected" | "closed";
+
+export type FranchiseApplicationRecord = {
+  id: string;
+  name: string;
+  company: string | null;
+  city: string | null;
+  phone: string | null;
+  email: string | null;
+  budgetRange: string | null;
+  message: string | null;
+  status: FranchiseApplicationStatus;
+  adminNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 // ─── Generic API Response ──────────────────────────────
 export type ApiResponse<T> = {
   data: T | null;

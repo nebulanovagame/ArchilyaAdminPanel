@@ -14,6 +14,8 @@ function getPageTitle(pathname: string): string {
     "/render-jobs": "Render İşleri",
     "/ai-jobs": "AI İşleri",
     "/teklif-sunum": "Teklif / Sunum",
+    "/partner-firms": "Şubeler & İş Ortakları",
+    "/franchise-applications": "Franchise Başvuruları",
     "/audit-logs": "Denetim Kaydı",
     "/settings": "Ayarlar",
     "/legacy/products": "Eski Sistem - Ürünler",

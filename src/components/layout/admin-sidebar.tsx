@@ -24,6 +24,8 @@ import {
   Loader2,
   ChevronDown,
   Receipt,
+  Store,
+  ClipboardList,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -49,6 +51,8 @@ const NAV_ITEMS: NavItem[] = [
   { icon: Image, label: "Render İşleri", href: "/render-jobs" },
   { icon: Brain, label: "AI İşleri", href: "/ai-jobs" },
   { icon: FileText, label: "Teklif / Sunum", href: "/teklif-sunum" },
+  { icon: Store, label: "Şubeler & Ortaklar", href: "/partner-firms" },
+  { icon: ClipboardList, label: "Franchise Başvuruları", href: "/franchise-applications" },
   {
     icon: Archive,
     label: "Eski Sistem",

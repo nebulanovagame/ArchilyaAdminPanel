@@ -22,8 +22,12 @@ import type {
   PaymentSessionsResponse,
   SendNotificationPayload,
   SendNotificationResponse,
-  UserActivityResponse,
   FeedbackResponse,
+  UserActivityResponse,
+  PartnerFirmRecord,
+  PartnerFirmType,
+  FranchiseApplicationRecord,
+  FranchiseApplicationStatus,
 } from "./types";
 
 import {
@@ -37,6 +41,8 @@ import {
   MOCK_RENDER_JOBS,
   MOCK_AUDIT_LOGS,
   MOCK_LEGACY_PRODUCTS,
+  MOCK_PARTNER_FIRMS,
+  MOCK_FRANCHISE_APPLICATIONS,
   delay,
 } from "./mock-data";
 
@@ -384,4 +390,118 @@ export async function getUserFeedback(
   const query = searchParams.toString();
   const path = `/api/admin/users/${userId}/feedback${query ? `?${query}` : ""}`;
   return fetchLocal<FeedbackResponse>(path);
+}
+
+// ─── Partner Firms ──────────────────────────────────────
+export async function listPartnerFirms(type?: PartnerFirmType): Promise<PartnerFirmRecord[]> {
+  const searchParams = type ? new URLSearchParams({ type }) : new URLSearchParams();
+  const query = searchParams.toString();
+  const path = `/api/admin/partner-firms${query ? `?${query}` : ""}`;
+  return fetchWithFallback(path, "/admin/partner-firms", () => {
+    let items = [...MOCK_PARTNER_FIRMS];
+    if (type) items = items.filter((f) => f.type === type);
+    return items;
+  });
+}
+
+export async function getPartnerFirm(id: string): Promise<PartnerFirmRecord> {
+  return fetchWithFallback(
+    `/api/admin/partner-firms/${id}`,
+    `/admin/partner-firms/${id}`,
+    () => {
+      const firm = MOCK_PARTNER_FIRMS.find((f) => f.id === id);
+      if (!firm) throw new Error("Firma bulunamadı");
+      return firm;
+    },
+  );
+}
+
+export async function createPartnerFirm(
+  data: Omit<PartnerFirmRecord, "id" | "createdAt" | "updatedAt">,
+): Promise<PartnerFirmRecord> {
+  return postWithFallback(
+    "/api/admin/partner-firms",
+    "/admin/partner-firms",
+    data as unknown as Record<string, unknown>,
+    () => ({
+      ...data,
+      id: `pf-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }),
+  );
+}
+
+export async function updatePartnerFirm(
+  id: string,
+  data: Partial<PartnerFirmRecord>,
+): Promise<PartnerFirmRecord> {
+  return postWithFallback(
+    `/api/admin/partner-firms/${id}`,
+    `/admin/partner-firms/${id}`,
+    { ...data, id } as unknown as Record<string, unknown>,
+    () => {
+      const firm = MOCK_PARTNER_FIRMS.find((f) => f.id === id);
+      if (!firm) throw new Error("Firma bulunamadı");
+      return { ...firm, ...data, updatedAt: new Date().toISOString() };
+    },
+  );
+}
+
+export async function deletePartnerFirm(id: string): Promise<{ success: boolean }> {
+  return postWithFallback(
+    `/api/admin/partner-firms/${id}/delete`,
+    `/admin/partner-firms/${id}/delete`,
+    { id },
+    () => ({ success: true }),
+  );
+}
+
+// ─── Franchise Applications ─────────────────────────────
+
+export async function listFranchiseApplications(
+  status?: FranchiseApplicationStatus,
+): Promise<FranchiseApplicationRecord[]> {
+  const searchParams = status ? new URLSearchParams({ status }) : new URLSearchParams();
+  const query = searchParams.toString();
+  const path = `/api/admin/franchise-applications${query ? `?${query}` : ""}`;
+  return fetchWithFallback(path, "/admin/franchise-applications", () => {
+    let items = [...MOCK_FRANCHISE_APPLICATIONS];
+    if (status) items = items.filter((a) => a.status === status);
+    return items;
+  });
+}
+
+export async function getFranchiseApplication(id: string): Promise<FranchiseApplicationRecord> {
+  return fetchWithFallback(
+    `/api/admin/franchise-applications/${id}`,
+    `/admin/franchise-applications/${id}`,
+    () => {
+      const app = MOCK_FRANCHISE_APPLICATIONS.find((a) => a.id === id);
+      if (!app) throw new Error("Başvuru bulunamadı");
+      return { ...app };
+    },
+  );
+}
+
+export async function updateFranchiseApplicationStatus(
+  id: string,
+  status: FranchiseApplicationStatus,
+  adminNote?: string,
+): Promise<FranchiseApplicationRecord> {
+  return postWithFallback(
+    `/api/admin/franchise-applications/${id}`,
+    `/admin/franchise-applications/${id}`,
+    { status, adminNote } as Record<string, unknown>,
+    () => {
+      const app = MOCK_FRANCHISE_APPLICATIONS.find((a) => a.id === id);
+      if (!app) throw new Error("Başvuru bulunamadı");
+      return {
+        ...app,
+        status,
+        adminNote: adminNote ?? app.adminNote,
+        updatedAt: new Date().toISOString(),
+      };
+    },
+  );
 }
