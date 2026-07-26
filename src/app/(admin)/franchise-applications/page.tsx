@@ -59,7 +59,10 @@ export default function FranchiseApplicationsPage() {
     }
   }, [filter]);
 
-  useEffect(() => { fetchApplications(); }, [fetchApplications]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchApplications(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchApplications]);
 
   function openEdit(app: FranchiseApplicationRecord) {
     setEditing(app);

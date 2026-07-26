@@ -65,7 +65,10 @@ export default function PartnerFirmsPage() {
     }
   }, [filter]);
 
-  useEffect(() => { fetchFirms(); }, [fetchFirms]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchFirms(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchFirms]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();

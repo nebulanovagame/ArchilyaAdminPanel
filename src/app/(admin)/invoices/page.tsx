@@ -78,7 +78,8 @@ export default function InvoicesPage() {
   }, []);
 
   useEffect(() => {
-    void fetchInvoices(filter);
+    const timer = window.setTimeout(() => void fetchInvoices(filter), 0);
+    return () => window.clearTimeout(timer);
   }, [filter, fetchInvoices]);
 
   const handleMarkInvoiced = useCallback(async () => {
