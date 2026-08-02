@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 const FIRM_SELECT = "id, name, type, category, address, city, country, latitude, longitude, phone, email, website, social_media, logo_url, description, is_active, order_index, created_at, updated_at";
 
@@ -55,6 +56,7 @@ async function listHandler(request: Request) {
     return NextResponse.json({ data: (data || []).map(mapFirm) });
   } catch (err) {
     console.error("Admin API /partner-firms error:", err);
+    captureApiError(err, "admin/partner-firms GET");
     return NextResponse.json(
       { error: { message: "Firmalar listelenemedi.", code: "internal" } },
       { status: 500 },
@@ -113,6 +115,7 @@ async function createHandler(request: Request) {
     return NextResponse.json({ data: mapFirm(data) }, { status: 201 });
   } catch (err) {
     console.error("Admin API /partner-firms POST error:", err);
+    captureApiError(err, "admin/partner-firms POST");
     return NextResponse.json(
       { error: { message: "Firma oluşturulamadı.", code: "internal" } },
       { status: 500 },

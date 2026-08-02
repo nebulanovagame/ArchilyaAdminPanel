@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 async function handler(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireAdmin();
@@ -108,6 +109,7 @@ async function handler(_request: Request, { params }: { params: Promise<{ id: st
     });
   } catch (err) {
     console.error("Admin API /ai-jobs/[id] error:", err);
+    captureApiError(err, "admin/ai-jobs/[id]");
     return NextResponse.json(
       { error: { message: "AI is detayi yuklenirken hata", code: "internal" } },
       { status: 500 },

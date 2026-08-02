@@ -1,6 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 /**
  * Admin auth guard for AdminPanel local API routes.
@@ -42,6 +43,7 @@ export async function requireAdmin(): Promise<
     return { uid: user.id, email: user.email ?? null };
   } catch (err) {
     console.error("[admin-guard] requireAdmin error:", err);
+    captureApiError(err, "admin-guard/requireAdmin");
     return NextResponse.json(
       { error: { message: "Yetkilendirme hatasi.", code: "internal" } },
       { status: 500 },

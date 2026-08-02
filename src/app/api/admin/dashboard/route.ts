@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 async function handler() {
   const auth = await requireAdmin();
@@ -38,6 +39,7 @@ async function handler() {
     });
   } catch (err) {
     console.error("Admin API /dashboard error:", err);
+    captureApiError(err, "admin/dashboard");
     return NextResponse.json(
       { error: { message: "Dashboard verisi yuklenirken hata", code: "internal" } },
       { status: 500 },

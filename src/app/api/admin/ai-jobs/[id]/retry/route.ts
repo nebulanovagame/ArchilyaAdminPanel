@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 import { rejectCrossSiteMutation } from "@/lib/api/security";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 async function handler(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originError = rejectCrossSiteMutation(request);
@@ -66,6 +67,7 @@ async function handler(request: Request, { params }: { params: Promise<{ id: str
 
     if (updateError) {
       console.error("Admin API /ai-jobs/[id]/retry update error:", updateError);
+      captureApiError(updateError, "admin/ai-jobs/[id]/retry update");
       return NextResponse.json(
         { error: { message: "Is retry durumuna alinamadi", code: "internal" } },
         { status: 500 },
@@ -102,6 +104,7 @@ async function handler(request: Request, { params }: { params: Promise<{ id: str
     });
   } catch (err) {
     console.error("Admin API /ai-jobs/[id]/retry error:", err);
+    captureApiError(err, "admin/ai-jobs/[id]/retry");
     return NextResponse.json(
       { error: { message: "Retry islemi basarisiz", code: "internal" } },
       { status: 500 },

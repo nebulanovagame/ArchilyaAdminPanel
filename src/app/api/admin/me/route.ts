@@ -3,6 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 /**
  * GET /api/admin/me
@@ -66,6 +67,7 @@ async function handler() {
     });
   } catch (err) {
     console.error("Admin API /me error:", err);
+    captureApiError(err, "admin/me");
     return NextResponse.json(
       { error: { message: "Sunucu hatası", code: "internal" } },
       { status: 500 },

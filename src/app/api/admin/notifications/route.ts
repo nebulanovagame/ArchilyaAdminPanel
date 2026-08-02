@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth/admin-guard";
 import { writeAdminAuditLog } from "@/lib/api/audit";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 import { rejectCrossSiteMutation } from "@/lib/api/security";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 const MAX_TITLE_LENGTH = 120;
 const MAX_BODY_LENGTH = 2_000;
@@ -147,6 +148,7 @@ async function handler(_request: Request) {
     });
   } catch (err) {
     console.error("Admin API /notifications error:", err);
+    captureApiError(err, "admin/notifications");
     return NextResponse.json(
       { error: { message: "Bildirim gonderilirken hata olustu", code: "internal" } },
       { status: 500 },

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 function getOrigin(value: string | undefined): string | null {
   if (!value) return null;
@@ -22,6 +23,8 @@ function buildContentSecurityPolicy(): string {
     supabaseOrigin?.replace(/^https:/, "wss:"),
     adminApiOrigin,
     appOrigin,
+    "https://*.ingest.de.sentry.io",
+    "https://*.sentry.io",
     ...(isProduction
       ? []
       : [
@@ -91,4 +94,10 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const sentryOptions = {
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  authToken: process.env.SENTRY_AUTH_TOKEN || undefined,
+};
+
+export default withSentryConfig(nextConfig, sentryOptions);

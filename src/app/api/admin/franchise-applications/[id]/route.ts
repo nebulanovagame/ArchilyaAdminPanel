@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 const APPLICATION_SELECT = "id, name, company, city, phone, email, budget_range, message, status, admin_note, created_at, updated_at";
 
@@ -49,6 +50,7 @@ async function getHandler(
     return NextResponse.json({ data: mapApplication(data) });
   } catch (err) {
     console.error("Admin API /franchise-applications/[id] GET error:", err);
+    captureApiError(err, "admin/franchise-applications/[id] GET");
     return NextResponse.json(
       { error: { message: "Başvuru bilgisi alınamadı.", code: "internal" } },
       { status: 500 },
@@ -110,6 +112,7 @@ async function patchHandler(
     return NextResponse.json({ data: mapApplication(data) });
   } catch (err) {
     console.error("Admin API /franchise-applications/[id] PATCH error:", err);
+    captureApiError(err, "admin/franchise-applications/[id] PATCH");
     return NextResponse.json(
       { error: { message: "Başvuru güncellenemedi.", code: "internal" } },
       { status: 500 },

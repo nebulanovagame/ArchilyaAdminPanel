@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 async function handler() {
   const auth = await requireAdmin();
@@ -53,6 +54,7 @@ async function handler() {
     return NextResponse.json({ data: result });
   } catch (err) {
     console.error("Admin API /workspaces error:", err);
+    captureApiError(err, "admin/workspaces");
     return NextResponse.json(
       { error: { message: "Workspace verisi yuklenirken hata", code: "internal" } },
       { status: 500 },

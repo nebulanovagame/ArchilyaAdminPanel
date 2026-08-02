@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 const APPLICATION_SELECT = "id, name, company, city, phone, email, budget_range, message, status, admin_note, created_at, updated_at";
 
@@ -48,6 +49,7 @@ async function listHandler(request: Request) {
     return NextResponse.json({ data: (data || []).map(mapApplication) });
   } catch (err) {
     console.error("Admin API /franchise-applications error:", err);
+    captureApiError(err, "admin/franchise-applications");
     return NextResponse.json(
       { error: { message: "Başvurular listelenemedi.", code: "internal" } },
       { status: 500 },

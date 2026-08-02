@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 import type { UserActivityEntry, UserActivityResponse } from "@/lib/api/types";
 import {
   ACTIVITY_LIMIT,
@@ -208,6 +209,7 @@ async function handler(
     return NextResponse.json({ data: response });
   } catch (err) {
     console.error("Admin API /users/[id]/activity error:", err);
+    captureApiError(err, "admin/users/[id]/activity");
     return NextResponse.json(
       { error: { message: "Aktivite verisi alinirken hata olustu", code: "internal" } },
       { status: 500 },

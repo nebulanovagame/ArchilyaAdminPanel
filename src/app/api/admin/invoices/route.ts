@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 export async function GET(request: Request) {
   try {
@@ -41,6 +42,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
+    captureApiError(error, "admin/invoices GET");
     return NextResponse.json({ error: error instanceof Error ? error.message : "Faturalar yuklenemedi." }, { status: 500 });
   }
 }
@@ -141,7 +143,10 @@ export async function PATCH(request: Request) {
                 invoiceUrl,
               },
             }),
-          }).catch((e) => console.error("[invoice] email send error:", e));
+          }).catch((e) => {
+            console.error("[invoice] email send error:", e);
+            captureApiError(e, "admin/invoices email");
+          });
         }
       }
 
@@ -164,6 +169,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Gecersiz aksiyon." }, { status: 400 });
   } catch (error) {
     if (error instanceof Response) return error;
+    captureApiError(error, "admin/invoices PATCH");
     return NextResponse.json({ error: error instanceof Error ? error.message : "Fatura islemi basarisiz." }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 const FIRM_SELECT = "id, name, type, category, address, city, country, latitude, longitude, phone, email, website, social_media, logo_url, description, is_active, order_index, created_at, updated_at";
 
@@ -56,6 +57,7 @@ async function getHandler(
     return NextResponse.json({ data: mapFirm(data) });
   } catch (err) {
     console.error("Admin API /partner-firms/[id] GET error:", err);
+    captureApiError(err, "admin/partner-firms/[id] GET");
     return NextResponse.json(
       { error: { message: "Firma bilgisi alınamadı.", code: "internal" } },
       { status: 500 },
@@ -120,6 +122,7 @@ async function updateHandler(
     return NextResponse.json({ data: mapFirm(data) });
   } catch (err) {
     console.error("Admin API /partner-firms/[id] PUT error:", err);
+    captureApiError(err, "admin/partner-firms/[id] PUT");
     return NextResponse.json(
       { error: { message: "Firma güncellenemedi.", code: "internal" } },
       { status: 500 },

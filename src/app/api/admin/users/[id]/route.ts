@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 async function handler(
   _request: Request,
@@ -44,6 +45,7 @@ async function handler(
     return NextResponse.json({ data: user });
   } catch (err) {
     console.error("Admin API /users/[id] error:", err);
+    captureApiError(err, "admin/users/[id]");
     return NextResponse.json(
       { error: { message: "Kullanici yuklenirken hata", code: "internal" } },
       { status: 500 },

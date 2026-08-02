@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth/admin-guard";
 import { writeAdminAuditLog } from "@/lib/api/audit";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 import { rejectCrossSiteMutation } from "@/lib/api/security";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 const MAX_CREDIT_MUTATION_AMOUNT = 1_000_000;
 const DESCRIPTION_MAX_LENGTH = 500;
@@ -165,6 +166,7 @@ async function handler(
     });
   } catch (err) {
     console.error("Admin API /users/[id]/credits error:", err);
+    captureApiError(err, "admin/users/[id]/credits");
     return NextResponse.json(
       { error: { message: "Kredi islemi sirasinda hata", code: "internal" } },
       { status: 500 },

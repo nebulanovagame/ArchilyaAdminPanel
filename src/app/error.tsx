@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 
 export default function ErrorPage({
   error,
@@ -10,7 +11,9 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("Admin Panel Error:", error);
+    Sentry.captureException(error, {
+      tags: { boundary: "admin-root-error" },
+    });
   }, [error]);
 
   return (

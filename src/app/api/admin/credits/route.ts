@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 const TYPE_MAP: Record<string, "grant" | "usage" | "refund" | "purchase"> = {
   credit_purchase: "purchase",
@@ -43,6 +44,7 @@ async function handler() {
     return NextResponse.json({ data: credits });
   } catch (err) {
     console.error("Admin API /credits error:", err);
+    captureApiError(err, "admin/credits");
     return NextResponse.json(
       { error: { message: "Kredi verisi yuklenirken hata", code: "internal" } },
       { status: 500 },

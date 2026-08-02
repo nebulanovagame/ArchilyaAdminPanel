@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 async function handler(request: Request) {
   const auth = await requireAdmin();
@@ -55,6 +56,7 @@ async function handler(request: Request) {
     return NextResponse.json({ data: logs, meta: { total: count || 0, offset, limit, days, action: action || "all", search } });
   } catch (err) {
     console.error("Admin API /audit-logs error:", err);
+    captureApiError(err, "admin/audit-logs");
     return NextResponse.json(
       { error: { message: "Denetim kaydi yuklenirken hata", code: "internal" } },
       { status: 500 },

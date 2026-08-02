@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 async function handler(request: Request) {
   const guard = await requireAdmin();
@@ -88,6 +89,7 @@ async function handler(request: Request) {
     return NextResponse.json({ data: jobs, meta: { days, limit, count: jobs.length } });
   } catch (err) {
     console.error("Admin API /ai-jobs error:", err);
+    captureApiError(err, "admin/ai-jobs");
     return NextResponse.json(
       { error: { message: "AI is verisi yuklenirken hata", code: "internal" } },
       { status: 500 },

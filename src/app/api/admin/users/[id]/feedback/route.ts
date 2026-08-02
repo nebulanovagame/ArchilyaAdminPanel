@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 import type { FeedbackResponse } from "@/lib/api/types";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ async function handler(
 
     if (error) {
       console.error("[admin/users/feedback] Supabase error:", error.message);
+      captureApiError(error, "admin/users/[id]/feedback query");
       return NextResponse.json(
         { error: { message: "Geri bildirim verisi alinirken hata olustu", code: "database" } },
         { status: 500 },
@@ -45,6 +47,7 @@ async function handler(
     return NextResponse.json({ data: response });
   } catch (err) {
     console.error("Admin API /users/[id]/feedback error:", err);
+    captureApiError(err, "admin/users/[id]/feedback");
     return NextResponse.json(
       { error: { message: "Geri bildirim verisi alinirken hata olustu", code: "internal" } },
       { status: 500 },

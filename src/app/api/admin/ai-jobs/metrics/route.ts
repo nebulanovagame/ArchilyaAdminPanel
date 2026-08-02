@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { captureApiError } from "@/lib/api/sentry-bridge";
 
 async function handler(request: Request) {
   const guard = await requireAdmin();
@@ -97,6 +98,7 @@ async function handler(request: Request) {
     });
   } catch (err) {
     console.error("Admin API /ai-jobs/metrics error:", err);
+    captureApiError(err, "admin/ai-jobs/metrics");
     return NextResponse.json(
       { error: { message: "AI is metrikleri yuklenirken hata", code: "internal" } },
       { status: 500 },
