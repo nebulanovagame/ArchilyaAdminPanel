@@ -277,6 +277,40 @@ export async function listSubscriptions(): Promise<SubscriptionRecord[]> {
   );
 }
 
+export async function cancelSubscription(
+  id: string,
+): Promise<{ success: boolean; id: string; status: string }> {
+  return postWithFallback(
+    `/api/admin/subscriptions/${id}/cancel`,
+    `/admin/subscriptions/${id}/cancel`,
+    {},
+    () => ({ success: true, id, status: "cancelled" }),
+  );
+}
+
+export async function refundSubscription(
+  id: string,
+): Promise<{ success: boolean; id: string; refundedAmount: number }> {
+  return postWithFallback(
+    `/api/admin/subscriptions/${id}/refund`,
+    `/admin/subscriptions/${id}/refund`,
+    {},
+    () => ({ success: true, id, refundedAmount: 0 }),
+  );
+}
+
+export async function changeSubscriptionPlan(
+  id: string,
+  plan: "solo" | "pro" | "studio",
+): Promise<{ success: boolean; id: string; plan: string }> {
+  return postWithFallback(
+    `/api/admin/subscriptions/${id}/change-plan`,
+    `/admin/subscriptions/${id}/change-plan`,
+    { plan },
+    () => ({ success: true, id, plan }),
+  );
+}
+
 export async function listRenderJobs(): Promise<RenderJobRecord[]> {
   return fetchWithFallback(
     "/api/admin/render-jobs",
