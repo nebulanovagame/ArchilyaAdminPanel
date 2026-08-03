@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
-import { getUser, getUserFeedback, grantCredits, deductCredits } from "@/lib/api/admin-client";
+import { getUser, getUserFeedback, grantCredits, deductCredits, updateUser } from "@/lib/api/admin-client";
 import type { FeedbackEntry, UserRecord } from "@/lib/api/types";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -23,6 +23,7 @@ export default function UserDetailPage() {
   const [showDeduct, setShowDeduct] = useState(false);
   const [creditAmount, setCreditAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [feedbacks, setFeedbacks] = useState<FeedbackEntry[]>([]);
 
   const loadUser = useCallback(async () => {
@@ -104,6 +105,36 @@ export default function UserDetailPage() {
     finally { setSubmitting(false); }
   };
 
+  const handleStatusChange = async (newStatus: "active" | "suspended" | "banned") => {
+    const label = newStatus === "active" ? "Aktif" : newStatus === "suspended" ? "Askıya Al" : "Banla";
+    const msg = `Bu kullaniciyi "${label}" olarak guncellemek istediginize emin misiniz?`;
+    if (!window.confirm(msg)) return;
+
+    setUpdating(true);
+    try {
+      await updateUser(id, { status: newStatus });
+      toast.success(`Durum "${label}" olarak guncellendi.`);
+      void loadUser();
+    } catch (updateErr: unknown) { toast.error(getErrorMessage(updateErr, "Hata.")); }
+    finally { setUpdating(false); }
+  };
+
+  const handleAdminToggle = async () => {
+    const nextIsAdmin = user?.role !== "admin";
+    const msg = nextIsAdmin
+      ? "Bu kullaniciyi admin yapmak istediginize emin misiniz?"
+      : "Bu kullanicinin admin yetkisini kaldirmak istediginize emin misiniz?";
+    if (!window.confirm(msg)) return;
+
+    setUpdating(true);
+    try {
+      await updateUser(id, { isAdmin: nextIsAdmin });
+      toast.success(nextIsAdmin ? "Kullanici admin yapildi." : "Admin yetkisi kaldirildi.");
+      void loadUser();
+    } catch (updateErr: unknown) { toast.error(getErrorMessage(updateErr, "Hata.")); }
+    finally { setUpdating(false); }
+  };
+
   if (loading) return <LoadingState message="Kullanici yukleniyor..." />;
 
   if (error) {
@@ -145,7 +176,9 @@ export default function UserDetailPage() {
           </div>
           <div>
             <span className="text-[10px] uppercase tracking-widest text-gray-500 block mb-1">Durum</span>
-            <span className="text-white">{user.status === "active" ? "Aktif" : "Pasif"}</span>
+            <Badge variant={user.status === "active" ? "success" : user.status === "suspended" ? "warning" : "danger"}>
+              {user.status === "active" ? "Aktif" : user.status === "suspended" ? "Askıya Alınmış" : "Banlanmış"}
+            </Badge>
           </div>
           <div>
             <span className="text-[10px] uppercase tracking-widest text-gray-500 block mb-1">Workspace</span>
@@ -185,6 +218,66 @@ export default function UserDetailPage() {
           <Button variant="secondary" size="sm" onClick={() => router.push(`/users/${id}/activity`)}>
             <Clock className="w-3.5 h-3.5 mr-1" /> Aktivite Goruntule
           </Button>
+        </div>
+      </Card>
+
+      {/* User Management */}
+      <Card>
+        <CardTitle>Kullanici Yonetimi</CardTitle>
+        <div className="mt-4 space-y-4">
+          {/* Status Change */}
+          <div>
+            <span className="text-[10px] uppercase tracking-widest text-gray-500 block mb-2">Durum Degistir</span>
+            <div className="flex gap-2 flex-wrap">
+              {user.status !== "active" && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => handleStatusChange("active")}
+                  disabled={updating}
+                  loading={updating}
+                >
+                  Aktif
+                </Button>
+              )}
+              {user.status !== "suspended" && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleStatusChange("suspended")}
+                  disabled={updating}
+                  loading={updating}
+                >
+                  Askıya Al
+                </Button>
+              )}
+              {user.status !== "banned" && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleStatusChange("banned")}
+                  disabled={updating}
+                  loading={updating}
+                >
+                  Banla
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Admin Role Toggle */}
+          <div>
+            <span className="text-[10px] uppercase tracking-widest text-gray-500 block mb-2">Yetki</span>
+            <Button
+              variant={user.role === "admin" ? "danger" : "primary"}
+              size="sm"
+              onClick={handleAdminToggle}
+              disabled={updating}
+              loading={updating}
+            >
+              {user.role === "admin" ? "Adminligi Kaldir" : "Admin Yap"}
+            </Button>
+          </div>
         </div>
       </Card>
 

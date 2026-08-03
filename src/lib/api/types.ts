@@ -22,13 +22,16 @@ export type DashboardStats = {
   systemStatus: "healthy" | "degraded" | "down";
 };
 
+/** Kullanici durumu (profiles.status) */
+export type UserStatus = "active" | "suspended" | "banned";
+
 export type UserRecord = {
   id: string;
   email: string;
   displayName: string | null;
   avatarUrl: string | null;
   role: string;
-  status: "active" | "disabled" | "suspended";
+  status: UserStatus;
   createdAt: string;
   lastSignInAt: string | null;
   workspaceCount: number;

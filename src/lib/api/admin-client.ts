@@ -12,6 +12,7 @@ import type {
   BetaTesterRecord,
   DashboardStats,
   UserRecord,
+  UserStatus,
   WorkspaceRecord,
   ProjectRecord,
   CreditRecord,
@@ -54,6 +55,8 @@ let _accessToken: string | null = null;
 export function setAccessToken(token: string | null) {
   _accessToken = token;
 }
+
+export type { UserStatus } from "./types";
 
 class AdminApiError extends Error {
   status: number;
@@ -174,6 +177,71 @@ export async function getUser(id: string): Promise<UserRecord> {
       if (!user) throw new AdminApiError("Kullanici bulunamadi", 404, "not-found");
       return { ...user };
     },
+  );
+}
+
+export async function updateUser(
+  id: string,
+  changes: { status?: UserStatus; isAdmin?: boolean },
+): Promise<{ success: boolean }> {
+  // 1. Try local API route (PATCH)
+  try {
+    const localRes = await fetch(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    });
+    if (localRes.ok) {
+      const json = await localRes.json();
+      return (json.data ?? json) as { success: boolean };
+    }
+    const err = await localRes.json().catch(() => ({}));
+    throw new AdminApiError(
+      err?.error?.message || "Kullanici guncellenirken hata",
+      localRes.status,
+      err?.error?.code || "unknown",
+    );
+  } catch (e) {
+    if (e instanceof AdminApiError) throw e;
+  }
+
+  // 2. Try external backend API
+  if (API_BASE && _accessToken) {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${_accessToken}`,
+        },
+        body: JSON.stringify(changes),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return (json.data ?? json) as { success: boolean };
+      }
+      const err = await res.json().catch(() => ({}));
+      throw new AdminApiError(
+        err?.error?.message || "Kullanici guncellenirken hata",
+        res.status,
+        err?.error?.code || "unknown",
+      );
+    } catch (e) {
+      if (e instanceof AdminApiError) throw e;
+    }
+  }
+
+  // 3. Mock fallback (dev only)
+  if (isMockAllowed()) {
+    await delay(300);
+    return { success: true };
+  }
+
+  throw new AdminApiError(
+    "Admin API su anda kullanilamiyor. Lutfen daha sonra tekrar deneyin.",
+    503,
+    "service_unavailable",
   );
 }
 
