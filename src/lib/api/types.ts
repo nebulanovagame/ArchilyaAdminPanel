@@ -38,6 +38,14 @@ export type UserRecord = {
   totalCreditsUsed: number;
 };
 
+export type BetaTesterRecord = {
+  id: string;
+  email: string;
+  display_name: string | null;
+  is_beta_tester: boolean;
+  created_at: string;
+};
+
 export type WorkspaceRecord = {
   id: string;
   name: string;

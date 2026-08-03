@@ -9,6 +9,7 @@
 
 import type {
   AdminUser,
+  BetaTesterRecord,
   DashboardStats,
   UserRecord,
   WorkspaceRecord,
@@ -16,6 +17,7 @@ import type {
   CreditRecord,
   SubscriptionRecord,
   RenderJobRecord,
+  AiJobRecord,
   AuditLogEntry,
   LegacyProduct,
   PaymentReconciliationResponse,
@@ -212,6 +214,62 @@ export async function listRenderJobs(): Promise<RenderJobRecord[]> {
     "/api/admin/render-jobs",
     "/admin/render-jobs",
     () => [...MOCK_RENDER_JOBS],
+  );
+}
+
+export async function listAiJobs(params?: {
+  status?: string;
+  days?: number;
+  limit?: number;
+}): Promise<AiJobRecord[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.days) searchParams.set("days", String(params.days));
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  const query = searchParams.toString();
+  return fetchWithFallback(
+    `/api/admin/ai-jobs${query ? `?${query}` : ""}`,
+    "/admin/ai-jobs",
+    () => [],
+  );
+}
+
+export async function refundAiJob(
+  id: string,
+  opts?: { amount?: number; reason?: string },
+): Promise<{ success: boolean; refundAmount: number }> {
+  return postWithFallback(
+    `/api/admin/ai-jobs/${id}/refund`,
+    `/admin/ai-jobs/${id}/refund`,
+    { amount: opts?.amount, reason: opts?.reason } as Record<string, unknown>,
+    () => ({ success: true, refundAmount: opts?.amount || 0 }),
+  );
+}
+
+export async function listBetaTesters(params?: {
+  page?: number;
+  limit?: number;
+}): Promise<{ testers: BetaTesterRecord[]; total: number; page: number; limit: number }> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set("page", String(params.page));
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  const query = searchParams.toString();
+  return fetchWithFallback(
+    `/api/admin/beta/testers${query ? `?${query}` : ""}`,
+    "/admin/beta/testers",
+    () => ({ testers: [], total: 0, page: 1, limit: 50 }),
+  );
+}
+
+export async function updateBetaTester(
+  email: string,
+  action: "add" | "remove",
+): Promise<{ success: boolean; message: string }> {
+  return postWithFallback(
+    "/api/admin/beta/testers",
+    "/admin/beta/testers",
+    { email, action },
+    () => ({ success: true, message: action === "add" ? "Beta testcisi eklendi" : "Beta testcisi cikarildi" }),
   );
 }
 

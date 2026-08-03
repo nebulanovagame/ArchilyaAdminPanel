@@ -1,24 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Brain } from "lucide-react";
-import { listRenderJobs } from "@/lib/api/admin-client";
-import type { RenderJobRecord } from "@/lib/api/types";
+import { listAiJobs, refundAiJob } from "@/lib/api/admin-client";
+import type { AiJobRecord } from "@/lib/api/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableStatus } from "@/components/ui/table";
 
 export default function AiJobsPage() {
-  const [data, setData] = useState<RenderJobRecord[]>([]);
+  const [data, setData] = useState<AiJobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refunding, setRefunding] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    listRenderJobs()
-      .then((jobs) => setData(jobs.filter((j) => j.type === "ai")))
+  const fetchData = useCallback(() => {
+    listAiJobs({ days: 7 })
+      .then((jobs) => setData(jobs))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleRefund = async (job: AiJobRecord) => {
+    if (typeof window === "undefined") return;
+    if (!window.confirm("Kredi iadesi yapilsin mi?")) return;
+    setRefunding((prev) => new Set(prev).add(job.id));
+    try {
+      await refundAiJob(job.id, { reason: "Admin panel iadesi" });
+      window.location.reload();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Iade islemi basarisiz";
+      alert(message);
+      setRefunding((prev) => {
+        const next = new Set(prev);
+        next.delete(job.id);
+        return next;
+      });
+    }
+  };
 
   if (loading) return <LoadingState message="AI isleri yukleniyor..." />;
   if (error) return <div className="rounded-sm border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">{error}</div>;
@@ -42,6 +67,7 @@ export default function AiJobsPage() {
                 <TableHead>Kullanici</TableHead>
                 <TableHead>Proje</TableHead>
                 <TableHead>Olusturulma</TableHead>
+                <TableHead>Iade</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -53,6 +79,20 @@ export default function AiJobsPage() {
                   <TableCell className="text-[11px]">{job.projectName}</TableCell>
                   <TableCell className="text-[11px] text-gray-500">
                     {job.createdAt ? new Date(job.createdAt).toLocaleDateString("tr-TR") : "-"}
+                  </TableCell>
+                  <TableCell>
+                    {job.billing.refunded ? (
+                      <Badge variant="success">Iade edildi ({job.billing.amount})</Badge>
+                    ) : (job.status === "failed" || job.status === "canceled") ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        loading={refunding.has(job.id)}
+                        onClick={() => void handleRefund(job)}
+                      >
+                        Iade
+                      </Button>
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))}
