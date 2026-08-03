@@ -1,7 +1,7 @@
 # ArchilyaAdminPanel — Next.js 16 B2B Admin Panel
 
 ## OVERVIEW
-B2B admin panel for Archilya. Next.js 16.2.6, React 19.2.4, Tailwind v4, Supabase. Migrated from Electron 28 (older AGENTS.md descriptions saying "Electron / Vite 5" are stale).
+B2B admin panel for Archilya. Next.js 16.2.12, React 19.2.4, Tailwind v4, Supabase. Migrated from Electron 28 (older AGENTS.md descriptions saying "Electron / Vite 5" are stale).
 
 ## STRUCTURE
 ```
