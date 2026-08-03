@@ -18,14 +18,14 @@ src/
 | Task | Location | Notes |
 |------|----------|-------|
 | Entry (root layout) | `src/app/layout.tsx` | Fonts + metadata + globals.css |
-| Next config | `next.config.ts` | Minimal — no CSP, no i18n, no Sentry |
+| Next config | `next.config.ts` | Minimal — no CSP, no i18n; Sentry AKTİF (`withSentryConfig`, @sentry/nextjs) |
 | Lint config | `eslint.config.mjs` | next/core-web-vitals + typescript |
 | Tailwind | CSS-based (v4) | Uses `@import "tailwindcss"` in globals.css |
 | PostCSS | `postcss.config.mjs` | @tailwindcss/postcss |
 
 ## CONVENTIONS
 - Same core stack as `ArchilyaWebPanel` (Next.js 16, React 19, Tailwind v4) but stripped down.
-- No i18n (Turkish-only), no Sentry, no CSP headers, no rate limiting.
+- No i18n (Turkish-only), no CSP headers. Sentry AKTİF (@sentry/nextjs, withSentryConfig) ve rate limiting VAR (api route'larda `isRateLimited` — ai-jobs/metrics, retry route'ları dahil).
 - Auth via Supabase (same project as WebPanel).
 
 ## ANTI-PATTERNS
@@ -34,7 +34,7 @@ src/
 - Do NOT assume `next.config.ts` has Sentry or i18n plugins (check before adding).
 
 ## GOTCHAS
-- No test framework configured at all (no Vitest, Jest, Playwright).
+- Test framework AKTİF: Vitest (`npm run test`, `vitest run`) + 5 test dosyası (src altında *.test.ts(x)).
 - No CI pipeline.
 - `.gitignore` exists and correctly excludes `.env`, `.env*.local`, `node_modules`, `.next/` (earlier claims to the contrary are stale).
 - `eslint.config.mjs` exists and works.
