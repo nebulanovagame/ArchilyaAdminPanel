@@ -403,6 +403,23 @@ export type FranchiseApplicationRecord = {
   updatedAt: string;
 };
 
+// ─── User Feedback ─────────────────────────────────────
+export type FeedbackCategory = "suggestion" | "feature" | "bug" | "other";
+export type FeedbackStatus = "new" | "in_review" | "done" | "wont_do" | "closed";
+
+export type FeedbackRecord = {
+  id: string;
+  userId: string | null;
+  userEmail: string | null;
+  category: FeedbackCategory;
+  message: string;
+  pagePath: string | null;
+  status: FeedbackStatus;
+  adminNote: string | null;
+  isRead: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
 
 // ─── Offer System ──────────────────────────────────────
 
@@ -450,6 +467,20 @@ export type OfferRecord = {
   items: OfferItem[];
   createdAt: string;
   updatedAt: string;
+};
+
+// ─── Health Status ─────────────────────────────────────
+
+export type HealthStatus = {
+  ok: boolean;
+  service: string;
+  timestamp: string;
+  uptimeSeconds: number;
+  nodeVersion: string;
+  supabase: {
+    connected: boolean;
+    latencyMs: number;
+  };
 };
 
 // ─── Generic API Response ──────────────────────────────

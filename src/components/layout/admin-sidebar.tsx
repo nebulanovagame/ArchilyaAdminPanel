@@ -26,7 +26,9 @@ import {
   Receipt,
   Store,
   ClipboardList,
+  MessageSquare,
   BookOpen,
+  Activity,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -55,6 +57,8 @@ const NAV_ITEMS: NavItem[] = [
   { icon: BookOpen, label: "Teklif Katalogu", href: "/offer-services" },
   { icon: Store, label: "Şubeler & Ortaklar", href: "/partner-firms" },
   { icon: ClipboardList, label: "Franchise Başvuruları", href: "/franchise-applications" },
+  { icon: MessageSquare, label: "Geri Bildirimler", href: "/feedback" },
+  { icon: Activity, label: "Sistem Durumu", href: "/health" },
   {
     icon: Archive,
     label: "Eski Sistem",

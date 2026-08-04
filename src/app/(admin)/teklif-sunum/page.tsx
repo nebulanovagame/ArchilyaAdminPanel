@@ -106,11 +106,10 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
   );
 }
 
-function ServicePreviewCard({ service, m2, index, specialPrice }: { service: Service; m2: number; index: number; specialPrice: number | null }) {
-  const formulaPrice = calcServicePrice(service.basePrice, m2);
+function ServicePreviewCard({ service, m2, index, specialPrice, memberDiscountPct }: { service: Service; m2: number; index: number; specialPrice: number | null; memberDiscountPct: number }) {
+  const formulaPrice = calcServicePrice(service, m2, memberDiscountPct);
   const isCustom = m2 >= 5000;
   const effectiveTotal = specialPrice != null ? specialPrice : (formulaPrice?.total ?? 0);
-  const effectiveMember = specialPrice != null ? Math.round(specialPrice * 0.8) : (formulaPrice?.member ?? 0);
 
   return (
     <div
@@ -163,25 +162,17 @@ function ServicePreviewCard({ service, m2, index, specialPrice }: { service: Ser
               )}
             </div>
             <p className="text-[9px] text-gray-500 mb-3 tracking-wider font-medium">{fmt(m2)} m² · {fmt(effectiveTotal > 0 ? Math.round(effectiveTotal / m2) : 0)} TL/m²</p>
-            <div className="mb-4 rounded-sm border border-primary/20 bg-gradient-to-r from-primary/10 to-transparent px-4 py-3 shadow-[0_0_15px_rgba(198,168,124,0.06)]">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">Abone Bedeli</p>
-              <p className="mt-1 text-xl font-serif text-primary drop-shadow-[0_0_8px_rgba(198,168,124,0.2)]">{fmt(effectiveMember)} TL</p>
-            </div>
           </>
         ) : (
           <>
             <div className="mb-3 rounded-sm border border-white/[0.06] bg-black/30 px-4 py-4 backdrop-blur-sm">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-gray-500 font-semibold">Standart Bedel</p>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-gray-500 font-semibold">Toplam Bedel</p>
               <p className="mt-1 text-2xl font-serif text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.1)]">{fmt(formulaPrice.total)} TL</p>
             </div>
             <p className="text-[9px] text-gray-500 mb-3 tracking-wider font-medium">
               {fmt(m2)} m² · {fmt(formulaPrice.unit)} TL/m²
-              {unitSavingPct(m2) > 0 && <span className="text-emerald-400 ml-1">(-%{unitSavingPct(m2)})</span>}
+              {service.perM2 == null && unitSavingPct(m2) > 0 && <span className="text-emerald-400 ml-1">(-%{unitSavingPct(m2)})</span>}
             </p>
-            <div className="mb-4 rounded-sm border border-primary/20 bg-gradient-to-r from-primary/10 to-transparent px-4 py-3 shadow-[0_0_15px_rgba(198,168,124,0.06)]">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">Abone Bedeli</p>
-              <p className="mt-1 text-xl font-serif text-primary drop-shadow-[0_0_8px_rgba(198,168,124,0.2)]">{fmt(formulaPrice.member)} TL</p>
-            </div>
           </>
         )
       ) : null}
@@ -189,14 +180,22 @@ function ServicePreviewCard({ service, m2, index, specialPrice }: { service: Ser
       <ul className="space-y-1.5 text-[11px] text-gray-300/90">
         {formulaPrice && (
           <>
+            {memberDiscountPct > 0 && (
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
-              Taban fiyat: <strong className="text-gray-100">{fmt(service.basePrice)} TL</strong> · {fmt(m2)} m²
+              {service.perM2 != null ? (
+                <>
+                  Birim fiyat: <strong className="text-gray-100">{service.perM2} TL/m²</strong>
+                  {service.minPrice != null && <> · Minimum tutar: <strong className="text-gray-100">{fmt(service.minPrice)} TL</strong></>}
+                </>
+              ) : (
+                <>
+                  Taban fiyat: <strong className="text-gray-100">{fmt(service.basePrice)} TL</strong> · {fmt(m2)} m²
+                  {service.minPrice != null && <> · Minimum tutar: <strong className="text-gray-100">{fmt(service.minPrice)} TL</strong></>}
+                </>
+              )}
             </li>
-            <li className="flex items-start gap-2">
-              <Check className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
-              Abone indirimi: <strong className="text-primary">%20</strong>
-            </li>
+            )}
             {specialPrice != null && (
               <li className="flex items-start gap-2">
                 <Check className="mt-0.5 h-3 w-3 shrink-0 text-amber-400" />
@@ -217,15 +216,15 @@ function ServicePreviewCard({ service, m2, index, specialPrice }: { service: Ser
 }
 
 function ServiceSelectCard({
-  service, m2, selected, onToggle, onM2Change, specialPrice, onSpecialPriceChange,
+  service, m2, selected, onToggle, onM2Change, specialPrice, onSpecialPriceChange, memberDiscountPct,
 }: {
   service: Service; m2: number; selected: boolean;
   onToggle: () => void; onM2Change: (val: number) => void;
   specialPrice: number | null; onSpecialPriceChange: (val: number | null) => void;
+  memberDiscountPct: number;
 }) {
-  const formulaPrice = calcServicePrice(service.basePrice, m2);
+  const formulaPrice = calcServicePrice(service, m2, memberDiscountPct);
   const effectiveTotal = specialPrice != null ? specialPrice : (formulaPrice?.total ?? 0);
-  const effectiveMember = specialPrice != null ? Math.round(specialPrice * 0.8) : (formulaPrice?.member ?? 0);
 
   return (
     <div
@@ -250,7 +249,9 @@ function ServiceSelectCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-sm font-serif text-white italic leading-snug">{service.name}</h3>
-            <span className="shrink-0 text-[10px] text-gray-500/70 font-bold tracking-wider">{fmt(service.basePrice)} TL</span>
+            <span className="shrink-0 text-[10px] text-gray-500/70 font-bold tracking-wider">
+              {service.perM2 != null ? `${service.perM2} TL/m²` : `${fmt(service.basePrice)} TL`}
+            </span>
           </div>
           <p className="text-[11px] text-gray-500/80 leading-relaxed mt-1 line-clamp-2">{service.description}</p>
           {service.guarantee && (
@@ -300,7 +301,6 @@ function ServiceSelectCard({
             {formulaPrice && (
               <div className="text-right">
                 <p className="text-[11px] font-serif text-white">{fmt(effectiveTotal)} TL</p>
-                <p className="text-[10px] text-primary font-bold tracking-wider">Abone: {fmt(effectiveMember)} TL</p>
               </div>
             )}
           </div>
@@ -379,8 +379,221 @@ function ServiceSelectCard({
   );
 }
 
-function OdemeKosullari({ subscriberTotal, isCustom }: { subscriberTotal: number; isCustom: boolean }) {
-  const half = Math.round(subscriberTotal / 2);
+/* ─── Poster (Kare 1080×1080 + Yatay 1920×1080) ─── */
+
+const POSTER_SANS = 'var(--font-montserrat), sans-serif';
+const POSTER_SERIF = 'var(--font-cormorant), serif';
+const POSTER_GOLD = '#c6a87c';
+const POSTER_AMBER = '#fbbf24';
+const POSTER_BG = '#0f1115';
+const POSTER_SURFACE = '#1a1c23';
+
+const POSTER_LABEL: React.CSSProperties = { margin: 0, fontFamily: POSTER_SANS, fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', color: 'rgba(160,165,178,0.85)', textTransform: 'uppercase' };
+const POSTER_LABEL_GOLD: React.CSSProperties = { ...POSTER_LABEL, color: POSTER_GOLD };
+const POSTER_VALUE: React.CSSProperties = { margin: '6px 0 0', fontFamily: POSTER_SANS, fontSize: 22, fontWeight: 700, color: '#ffffff', fontVariantNumeric: 'tabular-nums' };
+const POSTER_VALUE_GOLD: React.CSSProperties = { ...POSTER_VALUE, color: POSTER_GOLD };
+const POSTER_SMALL: React.CSSProperties = { margin: '12px 0 0', fontFamily: POSTER_SANS, fontSize: 13, lineHeight: 1.6, color: 'rgba(150,155,168,0.9)' };
+const POSTER_BOX: React.CSSProperties = { border: '1px solid rgba(255,255,255,0.1)', background: POSTER_SURFACE, padding: '16px 20px', borderRadius: 2 };
+
+type PosterServiceData = Array<{ service: Service; m2: number; effectivePrice: { total: number; member: number; unit: number; isSpecial: boolean } | null }>;
+type PosterTotalsData = { standard: number; subscriber: number; saving: number; extraDiscount: number; hasCustom: boolean; count: number };
+
+function PosterHeader({ serviceData }: { serviceData: PosterServiceData }) {
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 26 }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1px solid rgba(198,168,124,0.35)', background: 'rgba(198,168,124,0.08)', padding: '8px 18px', borderRadius: 2, marginBottom: 16 }}>
+        <span style={{ width: 6, height: 6, borderRadius: 3, background: POSTER_GOLD }} />
+        <span style={{ fontFamily: POSTER_SANS, fontSize: 12, fontWeight: 800, letterSpacing: '0.28em', color: POSTER_GOLD }}>ARCHILYA HİZMET BEDELİ SUNUMU</span>
+        <span style={{ width: 6, height: 6, borderRadius: 3, background: POSTER_GOLD }} />
+      </div>
+      <h1 style={{ margin: 0, fontFamily: POSTER_SERIF, fontStyle: 'italic', fontSize: 33, lineHeight: 1.2, color: '#ffffff' }}>
+        {serviceData.map((d) => d.service.name).join(' + ')}
+      </h1>
+      <p style={{ margin: '10px 0 0', fontFamily: POSTER_SANS, fontSize: 14, color: 'rgba(160,165,178,0.9)' }}>
+        {new Date().toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })} · {serviceData.length} hizmet · Düzenleme tarihinden itibaren 14 gün geçerlidir
+      </p>
+    </div>
+  );
+}
+
+function PosterRow({ service, m2, effectivePrice, memberDiscountPct }: {
+  service: Service;
+  m2: number;
+  effectivePrice: { total: number; member: number; unit: number; isSpecial: boolean } | null;
+  memberDiscountPct: number;
+}) {
+  const isCustom = m2 >= 5000;
+  const isSpecial = effectivePrice?.isSpecial === true;
+  const formulaPrice = calcServicePrice(service, m2, memberDiscountPct);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '15px 4px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontFamily: POSTER_SANS, fontSize: 17, fontWeight: 600, color: '#f5f5f7', lineHeight: 1.3 }}>
+          {service.name}
+        </p>
+        <p style={{ margin: '4px 0 0', fontFamily: POSTER_SANS, fontSize: 13, color: 'rgba(160,165,178,0.85)' }}>
+          {isCustom
+            ? 'Özel proje kapsamında değerlendirilir'
+            : `${fmt(m2)} m² · ${fmt(effectivePrice?.unit ?? 0)} TL/m²`}
+          {service.guarantee && (
+            <span style={{ color: '#34d399', fontWeight: 600, marginLeft: 10 }}>✓ %50 iade garantisi</span>
+          )}
+        </p>
+      </div>
+
+      {isCustom ? (
+        <div style={{ flexShrink: 0, textAlign: 'right' }}>
+          <span style={{ display: 'inline-block', fontFamily: POSTER_SANS, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', color: POSTER_GOLD, border: '1px solid rgba(198,168,124,0.4)', background: 'rgba(198,168,124,0.08)', padding: '8px 14px', borderRadius: 2 }}>
+            ÖZEL PROJE · İLETİŞİME GEÇİN
+          </span>
+        </div>
+      ) : isSpecial ? (
+        <div style={{ flexShrink: 0, textAlign: 'right' }}>
+          <p style={{ margin: 0, fontFamily: POSTER_SANS, fontSize: 15, color: 'rgba(150,155,168,0.7)', textDecoration: 'line-through', textDecorationColor: 'rgba(248,113,113,0.5)' }}>
+            {formulaPrice ? `${fmt(formulaPrice.total)} TL` : ''}
+          </p>
+          <p style={{ margin: '2px 0 0', fontFamily: POSTER_SANS, fontSize: 22, fontWeight: 700, color: POSTER_AMBER, fontVariantNumeric: 'tabular-nums' }}>
+            {fmt(effectivePrice?.total ?? 0)} TL
+          </p>
+        </div>
+      ) : (
+        <p style={{ margin: 0, flexShrink: 0, fontFamily: POSTER_SANS, fontSize: 21, fontWeight: 700, color: '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
+          {fmt(effectivePrice?.total ?? 0)} TL
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PosterTotals({ totals, kdvPercent }: { totals: PosterTotalsData; kdvPercent: number }) {
+  const kdv = Math.round(totals.subscriber * kdvPercent / 100);
+  const kdvDahil = totals.subscriber + kdv;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={POSTER_BOX}>
+        <p style={POSTER_LABEL}>Toplam Tutar</p>
+        <p style={POSTER_VALUE}>{fmt(totals.subscriber)} TL</p>
+      </div>
+      <div style={POSTER_BOX}>
+        <p style={POSTER_LABEL}>KDV (%{kdvPercent})</p>
+        <p style={POSTER_VALUE}>{fmt(kdv)} TL</p>
+      </div>
+      <div style={{ ...POSTER_BOX, borderColor: 'rgba(198,168,124,0.45)', background: 'rgba(198,168,124,0.1)', gridColumn: 'span 2' }}>
+        <p style={POSTER_LABEL_GOLD}>KDV Dahil Toplam</p>
+        <p style={{ ...POSTER_VALUE_GOLD, fontSize: 26 }}>{fmt(kdvDahil)} TL</p>
+      </div>
+    </div>
+  );
+}
+
+function PosterPayment({ isCustom, totals, kdvPercent }: { isCustom: boolean; totals: PosterTotalsData; kdvPercent: number }) {
+  const kdvDahil = totals.subscriber + Math.round(totals.subscriber * kdvPercent / 100);
+  const half = Math.round(kdvDahil / 2);
+
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+        <div style={{ ...POSTER_BOX, borderColor: 'rgba(198,168,124,0.3)', textAlign: 'center' }}>
+          <p style={POSTER_LABEL_GOLD}>Ön Ödeme (%50)</p>
+          <p style={POSTER_VALUE_GOLD}>{!isCustom && totals.subscriber > 0 ? `${fmt(half)} TL` : 'Sipariş onayında'}</p>
+        </div>
+        <div style={{ ...POSTER_BOX, borderColor: 'rgba(198,168,124,0.3)', textAlign: 'center' }}>
+          <p style={POSTER_LABEL_GOLD}>Teslimde (%50)</p>
+          <p style={POSTER_VALUE_GOLD}>{!isCustom && totals.subscriber > 0 ? `${fmt(half)} TL` : 'Teslim sırasında'}</p>
+        </div>
+      </div>
+      <p style={POSTER_SMALL}>
+        Ödemeler banka havalesi / EFT ile Archilya hesabına yapılır · Teslim süresi, ön ödemenin alınmasını takiben 14 (on dört) gündür · Revizyon süreçleri bu süreye dahil değildir.
+      </p>
+    </>
+  );
+}
+
+function PosterFooter({ memberDiscountOn, totals, revisionFee }: { memberDiscountOn: boolean; totals: PosterTotalsData; revisionFee: number }) {
+  return (
+    <div style={{ marginTop: 22, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+      <p style={POSTER_SMALL}>
+        Fiyatlandırma: Fiyat = Taban Fiyat × (m²/100)<sup>0.8</sup> · Tüm fiyatlar en yakın tam sayıya yuvarlanmıştır
+        {memberDiscountOn ? ' · Fiyatlar %20 indirimli abone tarifesi üzerinden hesaplanmıştır' : ''}
+        {totals.extraDiscount > 0 ? ' · Ek indirim uygulanmıştır' : ''} · KDV hariçtir.
+      </p>
+      <p style={POSTER_SMALL}>
+        %50 iade garantisi · 2 ücretsiz revizyon hakkı (sonrası {revisionFee > 0 ? fmt(revisionFee) : '1.500'} TL/revizyon) ·
+        Sözleşme: archilya.com/mimarlik-hizmet-sozlesmesi
+      </p>
+    </div>
+  );
+}
+
+function TeklifPoster({ serviceData, totals, memberDiscountOn, kdvPercent, isCustom, revisionFee, memberDiscountPct }: {
+  serviceData: PosterServiceData;
+  totals: PosterTotalsData;
+  memberDiscountOn: boolean;
+  kdvPercent: number;
+  isCustom: boolean;
+  revisionFee: number;
+  memberDiscountPct: number;
+}) {
+  return (
+    <>
+      <PosterHeader serviceData={serviceData} />
+
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        {serviceData.map((d) => (
+          <PosterRow key={d.service.id} service={d.service} m2={d.m2} effectivePrice={d.effectivePrice} memberDiscountPct={memberDiscountPct} />
+        ))}
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <PosterTotals totals={totals} kdvPercent={kdvPercent} />
+      </div>
+
+      <PosterPayment isCustom={isCustom} totals={totals} kdvPercent={kdvPercent} />
+
+      <PosterFooter memberDiscountOn={memberDiscountOn} totals={totals} revisionFee={revisionFee} />
+    </>
+  );
+}
+
+function TeklifPosterYatay({ serviceData, totals, memberDiscountOn, kdvPercent, isCustom, revisionFee, memberDiscountPct }: {
+  serviceData: PosterServiceData;
+  totals: PosterTotalsData;
+  memberDiscountOn: boolean;
+  kdvPercent: number;
+  isCustom: boolean;
+  revisionFee: number;
+  memberDiscountPct: number;
+}) {
+  return (
+    <>
+      <PosterHeader serviceData={serviceData} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 24, marginTop: 22 }}>
+        {/* Sol: hizmet listesi */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          {serviceData.map((d) => (
+            <PosterRow key={d.service.id} service={d.service} m2={d.m2} effectivePrice={d.effectivePrice} memberDiscountPct={memberDiscountPct} />
+          ))}
+        </div>
+
+        {/* Sağ: toplamlar + ödeme koşulları */}
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', padding: 18, borderRadius: 2 }}>
+          <PosterTotals totals={totals} kdvPercent={kdvPercent} />
+          <PosterPayment isCustom={isCustom} totals={totals} kdvPercent={kdvPercent} />
+        </div>
+      </div>
+
+      <PosterFooter memberDiscountOn={memberDiscountOn} totals={totals} revisionFee={revisionFee} />
+    </>
+  );
+}
+
+function OdemeKosullari({ subscriberTotal, isCustom, kdvPercent }: { subscriberTotal: number; isCustom: boolean; kdvPercent: number }) {
+  const kdv = Math.round(subscriberTotal * kdvPercent / 100);
+  const kdvDahil = subscriberTotal + kdv;
+  const half = Math.round(kdvDahil / 2);
   return (
     <div className="anim-fade-in mt-3 rounded-sm border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-surface/70 to-surface/90 p-5 text-xs leading-relaxed text-gray-400 backdrop-blur-sm shadow-[0_0_30px_rgba(198,168,124,0.04)]" style={{ animationDelay: '0.55s' }}>
       {/* Header */}
@@ -404,8 +617,22 @@ function OdemeKosullari({ subscriberTotal, isCustom }: { subscriberTotal: number
                 <p className="text-base font-serif text-primary font-bold">{fmt(half)} TL</p>
               </div>
             </div>
+            <div className="mb-3 rounded-sm border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[9px] uppercase tracking-[0.2em] text-gray-500 font-semibold">Ara Toplam (KDV hariç)</span>
+                <span className="text-xs font-serif text-white tabular-nums">{fmt(subscriberTotal)} TL</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[9px] uppercase tracking-[0.2em] text-gray-500 font-semibold">KDV (%{kdvPercent})</span>
+                <span className="text-xs font-serif text-gray-300 tabular-nums">{fmt(kdv)} TL</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] pt-1.5">
+                <span className="text-[9px] uppercase tracking-[0.2em] text-primary font-bold">KDV Dahil Toplam</span>
+                <span className="text-sm font-serif text-primary font-bold tabular-nums">{fmt(kdvDahil)} TL</span>
+              </div>
+            </div>
             <p className="text-[10px] text-gray-500/80">
-              Toplam bedelin <strong className="text-gray-100">%50&apos;si ({fmt(half)} TL)</strong> sipariş onayında ön ödeme olarak,
+              KDV dahil toplam bedelin <strong className="text-gray-100">%50&apos;si ({fmt(half)} TL)</strong> sipariş onayında ön ödeme olarak,
               kalan <strong className="text-gray-100">%50 bakiye ({fmt(half)} TL)</strong> işin teslimi sırasında tahsil edilir.
             </p>
           </>
@@ -418,12 +645,12 @@ function OdemeKosullari({ subscriberTotal, isCustom }: { subscriberTotal: number
 
         <p className="text-[10px] text-gray-500/80">
           Ödemeler, banka havalesi veya EFT yoluyla Archilya tarafından bildirilecek banka hesabına yapılır.
-          Tüm fiyatlara KDV dahil değildir.
+          Ön ödeme ve bakiye tutarları KDV dahil toplam üzerinden hesaplanmıştır.
         </p>
 
         <p className="text-[10px] text-gray-500/80">
           <span className="text-primary text-[9px] font-bold uppercase tracking-[0.2em] mr-1">◷</span>
-          Teslim süresi, ön ödemenin alınmasını takiben <strong className="text-gray-100">3 (üç) haftadır</strong>.
+          Teslim süresi, ön ödemenin alınmasını takiben <strong className="text-gray-100">14 (on dört) gündür</strong>.
           Revizyon süreçleri bu süreye dahil değildir.
         </p>
       </div>
@@ -480,6 +707,10 @@ export default function TeklifSunumPage() {
   const [extraDiscountPercent, setExtraDiscountPercent] = useState(0);
   const [extraDiscountAmount, setExtraDiscountAmount] = useState(0);
   const [revisionFee, setRevisionFee] = useState(0);
+  const [memberDiscountOn, setMemberDiscountOn] = useState(true);
+  const [kdvPercent, setKdvPercent] = useState(20);
+
+  const memberDiscountPct = memberDiscountOn ? 20 : 0;
 
 
   const selectedServices = useMemo(() => ALL_SERVICES.filter((s) => selectedIds.has(s.id)), [selectedIds]);
@@ -505,15 +736,16 @@ export default function TeklifSunumPage() {
       if (m2 >= 5000) { map[s.id] = null; return; }
       const special = specialPrices[s.id];
       if (special != null) {
-        map[s.id] = { total: special, member: Math.round(special * 0.8), unit: Math.round(special / m2), isSpecial: true };
+        // Özel fiyat yolunda çifte indirim uygulanmaz: normal fiyat = abone fiyatı (şimdilik)
+        map[s.id] = { total: special, member: special, unit: Math.round(special / m2), isSpecial: true };
       } else {
-        const p = calcServicePrice(s.basePrice, m2);
+        const p = calcServicePrice(s, m2, memberDiscountPct);
         if (p) map[s.id] = { ...p, isSpecial: false };
         else map[s.id] = null;
       }
     });
     return map;
-  }, [selectedServices, serviceM2s, specialPrices]);
+  }, [selectedServices, serviceM2s, specialPrices, memberDiscountPct]);
 
   // Apply extra discount on top
   const totals = useMemo(() => {
@@ -555,32 +787,45 @@ export default function TeklifSunumPage() {
 
   const [exporting, setExporting] = useState(false);
 
-  const handleExportJPEG = useCallback(async () => {
-    const el = document.getElementById('teklif-preview-content');
-    if (!el) return;
+  // Poster (kare/yatay) export — içerik uzunsa scale ile hedef tuval boyutuna sığdırılır
+  const exportPosterJPEG = useCallback(async (
+    rootId: string,
+    innerId: string,
+    width: number,
+    height: number | null,
+    filename: string,
+  ) => {
+    const root = document.getElementById(rootId);
+    const inner = document.getElementById(innerId);
+    if (!root || !inner) return;
     setExporting(true);
 
-    // Temiz export için: panel-sheen gradient overlay + backdrop-blur
-    // geçici olarak kaldır (dom-to-image-more bu etkileri bozuk render eder)
-    const sheenNodes = el.querySelectorAll<HTMLElement>('.panel-sheen');
-    const blurNodes = el.querySelectorAll<HTMLElement>('[class*="backdrop-blur-"]');
-    sheenNodes.forEach((n) => n.classList.add('_sheen-export-hidden'));
-    blurNodes.forEach((n) => n.classList.add('_blur-export-hidden'));
-    // _blur-export-hidden inline style eki
-    blurNodes.forEach((n) => n.style.backdropFilter = 'none');
+    const PAD = 44; // posterin üst/alt iç boşluğu (px)
 
     try {
-      const dataUrl = await toJpeg(el, {
+      // Önceki ölçek/dolgu sıfırlanır, doğal yükseklik ölçülür
+      inner.style.transform = '';
+      inner.style.paddingTop = '0px';
+
+      const naturalH = inner.scrollHeight;
+
+      if (height == null) {
+        // Dikey: doğal yükseklik — ölçekleme/ortalamaya gerek yok
+        height = root.scrollHeight;
+      } else if (naturalH > height - PAD) {
+        // Taşma: içerik tuvalin alt kenarına tam oturacak şekilde küçültülür
+        inner.style.transform = `scale(${(height - PAD) / naturalH})`;
+      } else {
+        // Sığdı: dikey ortalama için üst dolgu
+        inner.style.paddingTop = `${PAD + Math.round((height - 2 * PAD - naturalH) / 2)}px`;
+      }
+
+      const dataUrl = await toJpeg(root, {
         quality: 0.92,
         bgcolor: '#0f1115',
-        width: el.scrollWidth,
-        height: el.scrollHeight,
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-        },
+        width,
+        height,
         filter: (node) => {
-          // Skip background glow/fixed elements inside the capture area
           if (node instanceof HTMLElement) {
             const cls = node.className || '';
             if (typeof cls === 'string' && (cls.includes('pointer-events-none') || cls.includes('noise-overlay'))) return false;
@@ -589,21 +834,49 @@ export default function TeklifSunumPage() {
         },
       });
       const link = document.createElement('a');
-      link.download = `Archilya-Teklif-${new Date().toISOString().slice(0, 10)}.jpg`;
+      link.download = filename;
       link.href = dataUrl;
       link.click();
     } catch (err) {
-      console.error('JPEG export failed', err);
+      console.error('Poster JPEG export failed', err);
     } finally {
-      // restore
-      sheenNodes.forEach((n) => n.classList.remove('_sheen-export-hidden'));
-      blurNodes.forEach((n) => {
-        n.classList.remove('_blur-export-hidden');
-        n.style.backdropFilter = '';
-      });
+      inner.style.transform = '';
+      inner.style.paddingTop = '0px';
       setExporting(false);
     }
   }, []);
+
+  const handleExportSquareJPEG = useCallback(() => {
+    exportPosterJPEG(
+      'teklif-poster-content',
+      'teklif-poster-inner',
+      1080,
+      1080,
+      `Archilya-Teklif-Kare-${new Date().toISOString().slice(0, 10)}.jpg`,
+    );
+  }, [exportPosterJPEG]);
+
+  const handleExportLandscapeJPEG = useCallback(() => {
+    exportPosterJPEG(
+      'teklif-poster-yatay-content',
+      'teklif-poster-yatay-inner',
+      1920,
+      1080,
+      `Archilya-Teklif-Yatay-${new Date().toISOString().slice(0, 10)}.jpg`,
+    );
+  }, [exportPosterJPEG]);
+
+  // Dikey: temiz poster düzeni, doğal yükseklik (ölçekleme yok — yazılar tam boy)
+  const handleExportDikeyJPEG = useCallback(() => {
+    exportPosterJPEG(
+      'teklif-poster-dikey-content',
+      'teklif-poster-dikey-inner',
+      1080,
+      null,
+      `Archilya-Teklif-${new Date().toISOString().slice(0, 10)}.jpg`,
+    );
+  }, [exportPosterJPEG]);
+
   const handleGenerate = useCallback(() => {
     if (selectedServices.length === 0) return;
     setMode('preview');
@@ -677,6 +950,7 @@ export default function TeklifSunumPage() {
                         onM2Change={(val) => updateM2(s.id, val)}
                         specialPrice={specialPrices[s.id] ?? null}
                         onSpecialPriceChange={(val) => setSpecialPrices((prev) => ({ ...prev, [s.id]: val }))}
+                        memberDiscountPct={memberDiscountPct}
                       />
                     ))}
                   </div>
@@ -699,7 +973,31 @@ export default function TeklifSunumPage() {
               </button>
 
               {showAdvanced && (
-                <div className="mt-5 pt-5 border-t border-white/[0.06] grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="mt-5 pt-5 border-t border-white/[0.06] grid grid-cols-1 md:grid-cols-4 gap-5">
+                  {/* %20 Abone İndirimi Toggle */}
+                  <div className="space-y-2 md:col-span-4">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-gray-500 font-bold">%20 Abone İndirimi</p>
+                    <button
+                      onClick={() => setMemberDiscountOn((v) => !v)}
+                      className={`flex w-full md:w-auto items-center gap-3 rounded-sm border px-4 py-2.5 transition-all duration-300 cursor-pointer ${
+                        memberDiscountOn
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "border-white/10 bg-white/[0.03] text-gray-400 hover:border-white/20"
+                      }`}
+                    >
+                      <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors duration-300 ${memberDiscountOn ? "bg-primary" : "bg-white/10"}`}>
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all duration-300 ${memberDiscountOn ? "left-[18px]" : "left-0.5"}`} />
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em]">
+                        {memberDiscountOn ? "Açık — %20 uygulanıyor" : "Kapalı — standart tarife"}
+                      </span>
+                    </button>
+                    <p className="text-[9px] text-gray-600 font-medium">
+                      {memberDiscountOn
+                        ? "Şimdilik normal fiyatlar abone fiyatıyla aynıdır: %20 indirimli tarife uygulanır."
+                        : "Kapalıyken fiyatlar standart tarife üzerinden gösterilir."}
+                    </p>
+                  </div>
                   {/* Extra discount percent */}
                   <div className="space-y-2">
                     <p className="text-[10px] uppercase tracking-[0.22em] text-gray-500 font-bold">Ek % İndirim</p>
@@ -749,6 +1047,23 @@ export default function TeklifSunumPage() {
                     </div>
                     <p className="text-[9px] text-gray-600 font-medium">Ek revizyon ücreti revizyon başına belirtilen tutar olarak eklenir</p>
                   </div>
+
+                  {/* KDV oranı */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-gray-500 font-bold">KDV Oranı</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={kdvPercent}
+                        min={0}
+                        max={100}
+                        onChange={(e) => setKdvPercent(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-sm px-3 py-2 text-xs font-mono text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 focus:bg-primary/[0.04] transition-all duration-200 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                      <span className="text-xs text-gray-500 font-bold">%</span>
+                    </div>
+                    <p className="text-[9px] text-gray-600 font-medium">Ödeme koşullarında KDV dahil toplam bu oranla hesaplanır</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -767,12 +1082,8 @@ export default function TeklifSunumPage() {
                     <div className="hidden sm:block h-8 w-px bg-white/[0.06]" />
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <p className="text-[9px] uppercase tracking-[0.22em] text-gray-500 font-bold">Standart</p>
+                        <p className="text-[9px] uppercase tracking-[0.22em] text-gray-500 font-bold">Toplam</p>
                         <p className="text-base font-serif text-white">{fmt(totals.standard)} TL</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[9px] uppercase tracking-[0.22em] text-primary font-bold">Abone</p>
-                        <p className="text-base font-serif text-primary">{fmt(totals.subscriber)} TL</p>
                       </div>
                     </div>
                   </>
@@ -820,17 +1131,45 @@ export default function TeklifSunumPage() {
         </button>
 
         <button
-          onClick={handleExportJPEG}
+          onClick={handleExportDikeyJPEG}
           disabled={exporting}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-sm border border-primary/30 backdrop-blur-md text-[10px] font-bold uppercase tracking-[0.25em] transition-all cursor-pointer ${
             exporting
               ? 'bg-primary/20 text-primary/60 border-primary/10 cursor-wait'
               : 'bg-primary/10 text-primary hover:bg-primary/20 border-primary/30'
           }`}
-          title="Teklifi JPEG olarak kaydet (koyu arka plan)"
+          title="Teklifi temiz dikey poster olarak kaydet (telefonda okunaklı)"
         >
           <ImageDown className="h-3.5 w-3.5" />
-          {exporting ? 'Kaydediliyor...' : 'JPEG'}
+          {exporting ? 'Kaydediliyor...' : 'Dikey JPEG'}
+        </button>
+
+        <button
+          onClick={handleExportSquareJPEG}
+          disabled={exporting}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-sm border border-primary/30 backdrop-blur-md text-[10px] font-bold uppercase tracking-[0.25em] transition-all cursor-pointer ${
+            exporting
+              ? 'bg-primary/20 text-primary/60 border-primary/10 cursor-wait'
+              : 'bg-primary/10 text-primary hover:bg-primary/20 border-primary/30'
+          }`}
+          title="Teklifi kare (1080×1080) poster olarak kaydet"
+        >
+          <ImageDown className="h-3.5 w-3.5" />
+          {exporting ? 'Kaydediliyor...' : 'Kare Poster'}
+        </button>
+
+        <button
+          onClick={handleExportLandscapeJPEG}
+          disabled={exporting}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-sm border border-primary/30 backdrop-blur-md text-[10px] font-bold uppercase tracking-[0.25em] transition-all cursor-pointer ${
+            exporting
+              ? 'bg-primary/20 text-primary/60 border-primary/10 cursor-wait'
+              : 'bg-primary/10 text-primary hover:bg-primary/20 border-primary/30'
+          }`}
+          title="Teklifi yatay (1920×1080) poster olarak kaydet"
+        >
+          <ImageDown className="h-3.5 w-3.5" />
+          {exporting ? 'Kaydediliyor...' : 'Yatay Poster'}
         </button>
       </div>
 
@@ -863,7 +1202,12 @@ export default function TeklifSunumPage() {
               Bu sayfa, Archilya dinamik fiyatlandırma yapısına göre {serviceData.length} hizmet için hazırlanmıştır.
               Hesaplama formülü <strong className="text-gray-100">Fiyat = Taban Fiyat × (m² / 100)^0.8</strong> olup
               sonuçlar en yakın tam sayıya yuvarlanmıştır.
-              Abone indirimi tüm standart fiyatlar üzerinden <strong className="text-primary">%20</strong> olarak uygulanır.
+              {serviceData.some((d) => d.service.perM2 != null) && (
+                <> Bazı hizmetler <strong className="text-gray-100">m² başına sabit birim fiyat</strong> üzerinden hesaplanır.</>
+              )}
+              {memberDiscountOn && (
+                <> Fiyatlar <strong className="text-primary">%20 indirimli abone tarifesi</strong> üzerinden hesaplanmıştır; normal fiyatlar abone fiyatıyla aynıdır.</>
+              )}
             </p>
           </div>
 
@@ -881,9 +1225,10 @@ export default function TeklifSunumPage() {
           {/* Summary Stats (only if no custom m2) */}
           {!isCustom && (
             <div className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-4 anim-fade-in-up" style={{ animationDelay: '0.1s' }}>
-              <StatCard label="Standart Toplam" value={`${fmt(totals.standard)} TL`} />
-              <StatCard label="Abone Toplamı" value={`${fmt(totals.subscriber)} TL`} accent="primary" />
-              <StatCard label="Abone İndirimi" value="%20" sub={`${fmt(totals.saving)} TL tasarruf${totals.extraDiscount > 0 ? ` + ${fmt(totals.extraDiscount)} TL ek` : ''}`} accent="emerald" />
+              <StatCard label="Toplam Tutar" value={`${fmt(totals.standard)} TL`} />
+              {memberDiscountOn && totals.extraDiscount > 0 && (
+                <StatCard label="Ek İndirim" value={`-${fmt(totals.extraDiscount)} TL`} accent="emerald" />
+              )}
               <StatCard label="Toplam Alan" value={`${fmt(serviceData.reduce((s, d) => s + d.m2, 0))} m²`} sub={`${totals.count} hizmet · ${serviceData.map(d => `${fmt(d.m2)}m²`).join(' + ')}`} />
             </div>
           )}
@@ -897,6 +1242,7 @@ export default function TeklifSunumPage() {
                 m2={d.m2}
                 index={i}
                 specialPrice={d.effectivePrice?.isSpecial ? d.effectivePrice.total : null}
+                memberDiscountPct={memberDiscountPct}
               />
             ))}
 
@@ -915,20 +1261,21 @@ export default function TeklifSunumPage() {
                 <p className="mb-4 text-xs leading-relaxed text-gray-300">{serviceData.length} hizmet için toplam yatırım bedeli.</p>
 
                 <div className="mb-3 rounded-sm border border-white/[0.06] bg-black/30 px-4 py-3 backdrop-blur-sm">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-gray-500 font-semibold">Standart Toplam</p>
-                  <p className="mt-1 text-3xl font-serif text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{fmt(totals.standard)} TL</p>
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-gray-500 font-semibold">Toplam Tutar</p>
+                  <p className="mt-1 text-3xl font-serif text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{fmt(totals.subscriber)} TL</p>
                 </div>
 
-                <div className="mb-4 rounded-sm border border-primary/25 bg-gradient-to-r from-primary/[0.12] to-transparent px-4 py-3 shadow-[0_0_20px_rgba(198,168,124,0.08)]">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">Abone Toplamı</p>
-                  <p className="mt-1 text-2xl font-serif text-primary drop-shadow-[0_0_12px_rgba(198,168,124,0.2)]">{fmt(totals.subscriber)} TL</p>
-                  {totals.extraDiscount > 0 && <p className="text-[9px] text-amber-400 mt-0.5">Ek indirim: -{fmt(totals.extraDiscount)} TL</p>}
-                  <p className="text-[9px] text-gray-600 mt-1.5">* Tüm fiyatlara KDV dahil değildir.</p>
-                </div>
+                {memberDiscountOn && totals.extraDiscount > 0 && (
+                  <div className="mb-4 rounded-sm border border-primary/25 bg-gradient-to-r from-primary/[0.12] to-transparent px-4 py-3 shadow-[0_0_20px_rgba(198,168,124,0.08)]">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">Ek İndirim</p>
+                    <p className="mt-1 text-2xl font-serif text-primary drop-shadow-[0_0_12px_rgba(198,168,124,0.2)]">-{fmt(totals.extraDiscount)} TL</p>
+                    <p className="text-[9px] text-gray-600 mt-1.5">* Tüm fiyatlara KDV dahil değildir.</p>
+                  </div>
+                )}
 
                 {/* Distribution */}
                 {(() => {
-                  const allPrices = serviceData.map((d) => calcServicePrice(d.service.basePrice, d.m2));
+                  const allPrices = serviceData.map((d) => calcServicePrice(d.service, d.m2));
                   const totalStandard = allPrices.reduce((sum, p) => sum + (p?.total ?? 0), 0);
                   return (
                     <div className="mb-3">
@@ -955,7 +1302,9 @@ export default function TeklifSunumPage() {
                 <div className="rounded-sm border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-[10px] leading-relaxed text-gray-400 backdrop-blur-sm">
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70">Fiyatlandırma:</span><br />
                   Proje büyüklüğüne göre ölçeklenen dinamik fiyatlandırma uygulanır. Büyük projelerde m² birim fiyatı avantajlı hale gelir.<br />
-                  Abone fiyatları, her hizmetin standart tutarına <strong className="text-primary">%20 indirim</strong> uygulanarak hesaplanmıştır. Tüm fiyatlar en yakın 100 TL&apos;ye yuvarlanmıştır.<br />
+                  {memberDiscountOn
+                    ? <>Fiyatlar %20 indirimli abone tarifesi üzerinden hesaplanmıştır; normal fiyatlar abone fiyatıyla aynıdır. Tüm fiyatlar en yakın 100 TL&apos;ye yuvarlanmıştır.<br /></>
+                    : <>Tüm fiyatlar standart tarife üzerinden hesaplanmıştır. Tüm fiyatlar en yakın 100 TL&apos;ye yuvarlanmıştır.<br /></>}
                   <span className="text-gray-500">* Tüm fiyatlara KDV dahil değildir.</span>
                   {totals.extraDiscount > 0 && <> · Ek indirim: <strong className="text-amber-400">-{fmt(totals.extraDiscount)} TL</strong></>}
                 </div>
@@ -973,7 +1322,9 @@ export default function TeklifSunumPage() {
                   <strong className="text-gray-100">{d.service.name}</strong> — {fmt(d.m2)} m² alan üzerinden hesaplanmıştır
                 </span>
               ))}
-              . Tüm fiyatlar en yakın tam sayıya yuvarlanmış olup, abonelerimize özel <strong className="text-primary">%20 indirim</strong> uygulanmıştır.
+              . Tüm fiyatlar en yakın tam sayıya yuvarlanmış olup, {memberDiscountOn
+                ? <>fiyatlar <strong className="text-primary">%20 indirimli abone tarifesi</strong> üzerinden hesaplanmıştır; normal fiyatlar abone fiyatıyla aynıdır.</>
+                : <>fiyatlar standart tarife üzerindendir.</>}
               {totals.extraDiscount > 0 && <> · <strong className="text-amber-400">Ek indirim: -{fmt(totals.extraDiscount)} TL</strong></>}
             </p>
           </div>
@@ -988,9 +1339,60 @@ export default function TeklifSunumPage() {
           </div>
 
           {/* Ödeme Koşulları */}
-          <OdemeKosullari subscriberTotal={totals.subscriber} isCustom={isCustom} />
+          <OdemeKosullari subscriberTotal={totals.subscriber} isCustom={isCustom} kdvPercent={kdvPercent} />
         </section>
       </main>
+
+      {/* Dikey poster (1080px, doğal yükseklik) — sadece export için ekran dışında tutulur */}
+      <div aria-hidden className="pointer-events-none" style={{ position: 'absolute', left: -99999, top: 0, zIndex: -1 }}>
+        <div id="teklif-poster-dikey-content" style={{ width: 1080, background: POSTER_BG, padding: '44px 48px', boxSizing: 'border-box' }}>
+          <div id="teklif-poster-dikey-inner" style={{ transformOrigin: 'top left' }}>
+            <TeklifPoster
+              serviceData={serviceData}
+              totals={totals}
+              memberDiscountOn={memberDiscountOn}
+              kdvPercent={kdvPercent}
+              isCustom={isCustom}
+              revisionFee={revisionFee}
+              memberDiscountPct={memberDiscountPct}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Kare poster (1080×1080) — sadece export için ekran dışında tutulur */}
+      <div aria-hidden className="pointer-events-none" style={{ position: 'absolute', left: -99999, top: 0, zIndex: -1 }}>
+        <div id="teklif-poster-content" style={{ width: 1080, background: POSTER_BG, padding: '44px 48px', boxSizing: 'border-box' }}>
+          <div id="teklif-poster-inner" style={{ transformOrigin: 'top left' }}>
+            <TeklifPoster
+              serviceData={serviceData}
+              totals={totals}
+              memberDiscountOn={memberDiscountOn}
+              kdvPercent={kdvPercent}
+              isCustom={isCustom}
+              revisionFee={revisionFee}
+              memberDiscountPct={memberDiscountPct}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Yatay poster (1920×1080) — sadece export için ekran dışında tutulur */}
+      <div aria-hidden className="pointer-events-none" style={{ position: 'absolute', left: -99999, top: 0, zIndex: -1 }}>
+        <div id="teklif-poster-yatay-content" style={{ width: 1920, background: POSTER_BG, padding: '44px 48px', boxSizing: 'border-box' }}>
+          <div id="teklif-poster-yatay-inner" style={{ transformOrigin: 'top left' }}>
+            <TeklifPosterYatay
+              serviceData={serviceData}
+              totals={totals}
+              memberDiscountOn={memberDiscountOn}
+              kdvPercent={kdvPercent}
+              isCustom={isCustom}
+              revisionFee={revisionFee}
+              memberDiscountPct={memberDiscountPct}
+            />
+          </div>
+        </div>
+      </div>
 
     </div>
   );

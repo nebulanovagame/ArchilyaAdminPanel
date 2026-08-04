@@ -11,6 +11,7 @@ import type {
   AdminUser,
   BetaTesterRecord,
   DashboardStats,
+  HealthStatus,
   UserRecord,
   UserStatus,
   WorkspaceRecord,
@@ -31,6 +32,9 @@ import type {
   PartnerFirmType,
   FranchiseApplicationRecord,
   FranchiseApplicationStatus,
+  FeedbackRecord,
+  FeedbackCategory,
+  FeedbackStatus,
   OfferServiceRecord,
   OfferRecord,
 } from "./types";
@@ -48,6 +52,7 @@ import {
   MOCK_LEGACY_PRODUCTS,
   MOCK_PARTNER_FIRMS,
   MOCK_FRANCHISE_APPLICATIONS,
+  MOCK_FEEDBACK_ITEMS,
   delay,
 } from "./mock-data";
 
@@ -159,6 +164,21 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     "/api/admin/dashboard",
     "/admin/dashboard/stats",
     () => ({ ...MOCK_DASHBOARD_STATS }),
+  );
+}
+
+export async function getHealth(): Promise<HealthStatus> {
+  return fetchWithFallback(
+    "/api/admin/health",
+    "/admin/health",
+    () => ({
+      ok: true,
+      service: "archilya-admin-api",
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: 0,
+      nodeVersion: "N/A",
+      supabase: { connected: true, latencyMs: 0 },
+    }),
   );
 }
 
@@ -667,7 +687,50 @@ export async function updateFranchiseApplicationStatus(
     },
   );
 }
-// ÔöÇÔöÇÔöÇ Offer Services ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+// ─── Feedback ──────────────────────────────────────────
+
+export async function listFeedback(
+  status?: FeedbackStatus,
+  category?: FeedbackCategory,
+): Promise<FeedbackRecord[]> {
+  const searchParams = new URLSearchParams();
+  if (status) searchParams.set("status", status);
+  if (category) searchParams.set("category", category);
+  const query = searchParams.toString();
+  const path = `/api/admin/feedback${query ? `?${query}` : ""}`;
+  return fetchWithFallback(path, "/admin/feedback", () => {
+    let items = [...MOCK_FEEDBACK_ITEMS];
+    if (status) items = items.filter((f) => f.status === status);
+    if (category) items = items.filter((f) => f.category === category);
+    return items;
+  });
+}
+
+export async function updateFeedbackStatus(
+  id: string,
+  status: FeedbackStatus,
+  adminNote?: string,
+): Promise<FeedbackRecord> {
+  return postWithFallback(
+    `/api/admin/feedback/${id}`,
+    `/admin/feedback/${id}`,
+    { status, adminNote } as Record<string, unknown>,
+    () => {
+      const fb = MOCK_FEEDBACK_ITEMS.find((f) => f.id === id);
+      if (!fb) throw new Error("Geri bildirim bulunamadı");
+      return {
+        ...fb,
+        status,
+        adminNote: adminNote ?? fb.adminNote,
+        isRead: true,
+        updatedAt: new Date().toISOString(),
+      };
+    },
+  );
+}
+
+// ─── Offer Services ────────────────────────────────────
 
 export async function listOfferServices(): Promise<OfferServiceRecord[]> {
   return fetchWithFallback(
@@ -779,7 +842,7 @@ export async function deleteOfferService(id: string): Promise<{ success: boolean
   return updateOfferService(id, { isActive: false } as Partial<OfferServiceRecord>).then(() => ({ success: true }));
 }
 
-// ÔöÇÔöÇÔöÇ Offers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── Offers ────────────────────────────────────────────
 
 export async function listOffers(): Promise<OfferRecord[]> {
   return fetchWithFallback(

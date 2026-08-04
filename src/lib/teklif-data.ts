@@ -39,6 +39,8 @@ export interface Service {
   defaultM2: number;
   guarantee?: boolean;
   badge?: string | null;
+  perM2?: number;
+  minPrice?: number;
   features: string[];
 }
 
@@ -74,12 +76,17 @@ export function unitSavingPct(m2: number): number {
   return Math.round((1 - Math.pow(m2 / 100, -0.2)) * 100);
 }
 
-export function calcServicePrice(basePrice: number, m2: number): PriceResult | null {
+export function calcServicePrice(service: Service, m2: number, memberDiscountPct: number = 20): PriceResult | null {
   if (m2 >= 5000) return null;
-  const total = calcPrice(basePrice, m2);
-  const member = Math.round((total * 0.8) / 100) * 100;
+  // ŞİMDİLİK: normal fiyat = abone fiyatı. İndirim doğrudan normal fiyata uygulanır; teklifte tek fiyat gösterilir.
+  const baseTotal = service.perM2 != null
+    ? service.perM2 * m2
+    : calcPrice(service.basePrice, m2);
+  // Minimum tutar (minPrice) tabanı indirim sonrası final fiyata uygulanır:
+  // teklifte gösterilen tutar hiçbir zaman "Minimum tutar" etiketinin altına inmez.
+  const total = Math.round(Math.max(baseTotal * (100 - memberDiscountPct) / 100, service.minPrice ?? 0) / 100) * 100;
   const unit = Math.round(total / m2);
-  return { total, member, unit, saving: total - member };
+  return { total, member: total, unit, saving: 0 };
 }
 
 export function calcTotals(services: Service[], m2Map: Record<string, number>): Totals {
@@ -89,7 +96,7 @@ export function calcTotals(services: Service[], m2Map: Record<string, number>): 
   services.forEach((s) => {
     const m2 = m2Map[s.id] ?? s.defaultM2;
     if (m2 >= 5000) { hasCustom = true; return; }
-    const p = calcServicePrice(s.basePrice, m2);
+    const p = calcServicePrice(s, m2);
     if (p) {
       standard += p.total;
       subscriber += p.member;
@@ -159,6 +166,8 @@ export const ALL_SERVICES: Service[] = [
     name: 'Ruhsat Projesi',
     description: 'İdari onaya sunulmak üzere hazırlanan, belediye standartlarına uygun proje seti.',
     basePrice: 8000,
+    perM2: 10,
+    minPrice: 15000,
     category: 'arch',
     group: 'mimari-proje',
     defaultM2: 100,
@@ -233,6 +242,7 @@ export const ALL_SERVICES: Service[] = [
     name: 'Cephe Tasarım ve Uygulama Paketi',
     description: 'Konseptten uygulamaya, malzeme seçiminden montaj detaylarına kadar tüm cephe hizmetleri.',
     basePrice: 15000,
+    minPrice: 15000,
     category: 'arch',
     group: 'cephe',
     defaultM2: 100,
