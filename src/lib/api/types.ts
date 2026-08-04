@@ -403,6 +403,55 @@ export type FranchiseApplicationRecord = {
   updatedAt: string;
 };
 
+
+// ─── Offer System ──────────────────────────────────────
+
+export type OfferServiceRecord = {
+  id: string;
+  name: string;
+  description: string;
+  basePrice: number;
+  perM2: number | null;
+  minPrice: number | null;
+  category: "arch" | "vr";
+  group: string;
+  defaultM2: number;
+  guarantee: boolean;
+  badge: string | null;
+  features: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OfferItem = {
+  serviceId: string;
+  name: string;
+  m2: number;
+  price: number;
+  isCustom?: boolean;
+};
+
+export type OfferRecord = {
+  id: string;
+  adminId: string;
+  clientEmail: string | null;
+  clientName: string | null;
+  status: string;
+  currency: string;
+  subtotal: number;
+  kdvPercent: number;
+  kdvAmount: number;
+  total: number;
+  discountPct: number;
+  discountAmount: number;
+  memberDiscountOn: boolean;
+  specialPrices: Record<string, number>;
+  items: OfferItem[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 // ─── Generic API Response ──────────────────────────────
 export type ApiResponse<T> = {
   data: T | null;

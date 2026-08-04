@@ -31,6 +31,8 @@ import type {
   PartnerFirmType,
   FranchiseApplicationRecord,
   FranchiseApplicationStatus,
+  OfferServiceRecord,
+  OfferRecord,
 } from "./types";
 
 import {
@@ -662,6 +664,154 @@ export async function updateFranchiseApplicationStatus(
         adminNote: adminNote ?? app.adminNote,
         updatedAt: new Date().toISOString(),
       };
+    },
+  );
+}
+// ÔöÇÔöÇÔöÇ Offer Services ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+export async function listOfferServices(): Promise<OfferServiceRecord[]> {
+  return fetchWithFallback(
+    "/api/admin/offer-services",
+    "/admin/offer-services",
+    () => [],
+  );
+}
+
+export async function createOfferService(
+  data: Omit<OfferServiceRecord, "id" | "isActive" | "createdAt" | "updatedAt">,
+): Promise<OfferServiceRecord> {
+  return postWithFallback(
+    "/api/admin/offer-services",
+    "/admin/offer-services",
+    data as unknown as Record<string, unknown>,
+    () => ({
+      ...data,
+      id: `os-${Date.now()}`,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }),
+  );
+}
+
+export async function updateOfferService(
+  id: string,
+  data: Partial<Omit<OfferServiceRecord, "id" | "createdAt" | "updatedAt">>,
+): Promise<OfferServiceRecord> {
+  // Use PATCH for update
+  try {
+    const localRes = await fetch(`/api/admin/offer-services/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (localRes.ok) {
+      const json = await localRes.json();
+      return (json.data ?? json) as OfferServiceRecord;
+    }
+    const err = await localRes.json().catch(() => ({}));
+    throw new AdminApiError(
+      err?.error?.message || "Hizmet guncellenemedi",
+      localRes.status,
+      err?.error?.code || "unknown",
+    );
+  } catch (e) {
+    if (e instanceof AdminApiError) throw e;
+  }
+
+  if (API_BASE && _accessToken) {
+    try {
+      const res = await fetch(`${API_BASE}/admin/offer-services/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${_accessToken}`,
+        },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return (json.data ?? json) as OfferServiceRecord;
+      }
+      const err = await res.json().catch(() => ({}));
+      throw new AdminApiError(
+        err?.error?.message || "Hizmet guncellenemedi",
+        res.status,
+        err?.error?.code || "unknown",
+      );
+    } catch (e) {
+      if (e instanceof AdminApiError) throw e;
+    }
+  }
+
+  if (isMockAllowed()) {
+    await delay(300);
+    return {
+      id,
+      name: "",
+      description: "",
+      basePrice: 0,
+      perM2: null,
+      minPrice: null,
+      category: "arch",
+      group: "",
+      defaultM2: 100,
+      guarantee: false,
+      badge: null,
+      features: [],
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...data,
+    };
+  }
+
+  throw new AdminApiError(
+    "Admin API su anda kullanilamiyor. Lutfen daha sonra tekrar deneyin.",
+    503,
+    "service_unavailable",
+  );
+}
+
+export async function deleteOfferService(id: string): Promise<{ success: boolean }> {
+  // Soft delete via PATCH is_active=false
+  return updateOfferService(id, { isActive: false } as Partial<OfferServiceRecord>).then(() => ({ success: true }));
+}
+
+// ÔöÇÔöÇÔöÇ Offers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+export async function listOffers(): Promise<OfferRecord[]> {
+  return fetchWithFallback(
+    "/api/admin/offers",
+    "/admin/offers",
+    () => [],
+  );
+}
+
+export async function createOffer(
+  data: Omit<OfferRecord, "id" | "adminId" | "createdAt" | "updatedAt">,
+): Promise<OfferRecord> {
+  return postWithFallback(
+    "/api/admin/offers",
+    "/admin/offers",
+    data as unknown as Record<string, unknown>,
+    () => ({
+      ...data,
+      id: `offer-${Date.now()}`,
+      adminId: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }),
+  );
+}
+
+export async function getOffer(id: string): Promise<OfferRecord> {
+  return fetchWithFallback(
+    `/api/admin/offers/${id}`,
+    `/admin/offers/${id}`,
+    () => {
+      throw new AdminApiError("Teklif bulunamadi", 404, "not-found");
     },
   );
 }

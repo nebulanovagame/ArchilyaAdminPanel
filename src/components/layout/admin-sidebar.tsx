@@ -26,6 +26,7 @@ import {
   Receipt,
   Store,
   ClipboardList,
+  BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -51,6 +52,7 @@ const NAV_ITEMS: NavItem[] = [
   { icon: Image, label: "Render İşleri", href: "/render-jobs" },
   { icon: Brain, label: "AI İşleri", href: "/ai-jobs" },
   { icon: FileText, label: "Teklif / Sunum", href: "/teklif-sunum" },
+  { icon: BookOpen, label: "Teklif Katalogu", href: "/offer-services" },
   { icon: Store, label: "Şubeler & Ortaklar", href: "/partner-firms" },
   { icon: ClipboardList, label: "Franchise Başvuruları", href: "/franchise-applications" },
   {
