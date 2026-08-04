@@ -1,69 +1,18 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
-function getOrigin(value: string | undefined): string | null {
-  if (!value) return null;
-
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-}
-
-function buildContentSecurityPolicy(): string {
-  const isProduction = process.env.NODE_ENV === "production";
-  const supabaseOrigin = getOrigin(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const adminApiOrigin = getOrigin(process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL);
-  const appOrigin = getOrigin(process.env.NEXT_PUBLIC_ADMIN_APP_URL);
-
-  const connectSources = [
-    "'self'",
-    supabaseOrigin,
-    supabaseOrigin?.replace(/^https:/, "wss:"),
-    adminApiOrigin,
-    appOrigin,
-    "https://*.ingest.de.sentry.io",
-    "https://*.sentry.io",
-    ...(isProduction
-      ? []
-      : [
-          "http://localhost:3000",
-          "http://127.0.0.1:3000",
-          "ws://localhost:3000",
-          "ws://127.0.0.1:3000",
-          "http://localhost:4000",
-          "http://127.0.0.1:4000",
-        ]),
-  ].filter(Boolean);
-
-  const imgSources = ["'self'", "data:", "blob:", supabaseOrigin].filter(Boolean);
-
-  return [
-    "default-src 'self'",
-    "base-uri 'self'",
-    "object-src 'none'",
-    "frame-ancestors 'none'",
-    "form-action 'self'",
-    `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
-    "style-src 'self' 'unsafe-inline'",
-    `img-src ${imgSources.join(" ")}`,
-    "font-src 'self' data:",
-    `connect-src ${connectSources.join(" ")}`,
-    ...(isProduction ? ["upgrade-insecure-requests"] : []),
-  ].join("; ");
-}
-
 const nextConfig: NextConfig = {
   async headers() {
+    // NOTE: Content-Security-Policy is NOT set here anymore.
+    // src/proxy.ts generates a per-request nonce-based CSP header (Bulgu 8 fix).
+    // Keep other security headers here.
+
+    const isProd = process.env.NODE_ENV === "production";
+
     return [
       {
         source: "/:path*",
         headers: [
-          {
-            key: "Content-Security-Policy",
-            value: buildContentSecurityPolicy(),
-          },
           {
             key: "X-Content-Type-Options",
             value: "nosniff",
@@ -80,7 +29,8 @@ const nextConfig: NextConfig = {
             key: "X-Frame-Options",
             value: "DENY",
           },
-          ...(process.env.NODE_ENV === "production"
+          // HSTS: enforce HTTPS for 2 years (production only)
+          ...(isProd
             ? [
                 {
                   key: "Strict-Transport-Security",

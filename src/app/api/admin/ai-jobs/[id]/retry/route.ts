@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 import { rejectCrossSiteMutation } from "@/lib/api/security";
+import { writeAdminAuditLog } from "@/lib/api/audit";
 import { captureApiError } from "@/lib/api/sentry-bridge";
 
 async function handler(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -75,13 +76,14 @@ async function handler(request: Request, { params }: { params: Promise<{ id: str
     }
 
     try {
-      await supabase.from("workspace_activity_logs").insert({
+      await writeAdminAuditLog(supabase, {
+        actorId: guard.uid,
+        actorEmail: guard.email,
         action: "ai_job_manual_retry",
-        actor_id: guard.uid,
-        actor_email: guard.email,
-        workspace_id: (job as Record<string, unknown>).workspace_id || null,
-        target_id: id,
-        metadata: {
+        resource: "ai_job",
+        resourceId: id,
+        workspaceId: (job as Record<string, unknown>).workspace_id as string | null || null,
+        details: {
           userId: (job as Record<string, unknown>).user_id,
           toolId: (job as Record<string, unknown>).tool_id,
           previousStatus: "failed",

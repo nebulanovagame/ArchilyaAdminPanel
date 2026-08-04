@@ -17,15 +17,17 @@ export async function createClient() {
         set(name: string, value: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value, ...options });
-          } catch {
-            // Can be ignored if middleware refreshes sessions
+          } catch (error) {
+            // Safe to ignore: proxy.ts handles session refresh via cookie round-trip.
+            // This catch fires when called from Server Components (read-only cookie context).
+            console.warn("[supabase/server] cookie set failed (expected in RSC):", name, error);
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: "", ...options });
-          } catch {
-            // Can be ignored if middleware refreshes sessions
+          } catch (error) {
+            console.warn("[supabase/server] cookie remove failed (expected in RSC):", name, error);
           }
         },
       },

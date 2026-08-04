@@ -6,6 +6,7 @@ type AdminAuditEvent = {
   action: string;
   resource: string;
   resourceId: string;
+  workspaceId?: string | null;
   details?: Record<string, unknown>;
 };
 
@@ -18,6 +19,7 @@ export async function writeAdminAuditLog(
     actor_id: event.actorId,
     actor_email: event.actorEmail,
     action: event.action,
+    workspace_id: event.workspaceId ?? null,
     target_type: event.resource,
     target_id: event.resourceId,
     metadata: details,
@@ -31,10 +33,12 @@ export async function writeAdminAuditLog(
 
   const fallbackPayload = {
     actor_id: event.actorId,
+    actor_email: event.actorEmail,
     action: event.action,
-    resource: event.resource,
-    resource_id: event.resourceId,
-    details: JSON.stringify({ actorEmail: event.actorEmail, ...details }),
+    workspace_id: event.workspaceId ?? null,
+    target_type: event.resource,
+    target_id: event.resourceId,
+    metadata: details,
   };
 
   const { error: fallbackError } = await supabase

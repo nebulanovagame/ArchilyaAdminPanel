@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
+import { rejectCrossSiteMutation } from "@/lib/api/security";
 import { captureApiError } from "@/lib/api/sentry-bridge";
 
 const APPLICATION_SELECT = "id, name, company, city, phone, email, budget_range, message, status, admin_note, created_at, updated_at";
@@ -62,6 +63,9 @@ async function patchHandler(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const originError = rejectCrossSiteMutation(request);
+  if (originError) return originError;
+
   const guard = await requireAdmin();
   if (guard instanceof NextResponse) return guard;
 
