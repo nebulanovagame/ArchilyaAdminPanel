@@ -45,21 +45,22 @@ describe("admin rate limit", () => {
     }
   });
 
-  it("fails closed in production when shared Redis REST env is missing", async () => {
+  it("falls back to in-memory limiting in production when Redis REST env is missing", async () => {
     vi.stubEnv("NODE_ENV", "production");
     const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }));
-    const wrapped = withRateLimit(handler, { limit: 1, windowMs: 60_000, keyPrefix: "test" });
+    const wrapped = withRateLimit(handler, { limit: 2, windowMs: 60_000, keyPrefix: "test" });
 
-    const response = await wrapped(makeRequest(), undefined);
+    // Redis env yokken üretimde istekler engellenmemeli (fallback çalışır).
+    const first = await wrapped(makeRequest(), undefined);
+    expect(first.status).toBe(200);
+    expect(handler).toHaveBeenCalledTimes(1);
 
-    expect(response.status).toBe(500);
-    expect(handler).not.toHaveBeenCalled();
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        message: "Admin rate limiting unavailable: Redis REST env must be configured",
-        code: "rate-limit-unavailable",
-      },
-    });
+    // In-memory limit yine de uygulanır: limit 2 → üçüncü istek 429.
+    const second = await wrapped(makeRequest(), undefined);
+    expect(second.status).toBe(200);
+    const third = await wrapped(makeRequest(), undefined);
+    expect(third.status).toBe(429);
+    expect(handler).toHaveBeenCalledTimes(2);
   });
 
   it("uses shared Redis REST rate limiting when configured", async () => {

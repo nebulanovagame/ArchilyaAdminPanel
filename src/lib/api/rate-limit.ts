@@ -21,7 +21,6 @@ type UpstashPipelineItem = {
 };
 
 const MAX_KEYS = 10_000;
-const REDIS_UNAVAILABLE_MESSAGE = "Admin rate limiting unavailable: Redis REST env must be configured";
 const buckets = new Map<string, number[]>();
 
 export const adminRateLimits = {
@@ -137,8 +136,15 @@ async function checkRateLimitWithStore(
   const config = getRedisRestConfig();
 
   if (!config) {
+    // Redis REST yapılandırılmamışsa üretimde de in-memory fallback kullan.
+    // Önceki davranış (production'da throw) tek bir env eksikliğinde tüm
+    // admin API'sini 500 ile kilitliyordu (2026-08-05 canlı arızası:
+    // kredi yükleme dahil her istek "rate-limit-unavailable" döndü).
+    // Tek replica'lık admin paneli için in-memory limit kabul edilebilir.
     if (process.env.NODE_ENV === "production") {
-      throw new Error(REDIS_UNAVAILABLE_MESSAGE);
+      console.warn(
+        "[admin-rate-limit] Redis REST env tanimli degil; in-memory rate limiting kullaniliyor.",
+      );
     }
 
     return checkRateLimit(request, options);
@@ -149,7 +155,9 @@ async function checkRateLimitWithStore(
   } catch (error) {
     console.error("[admin-rate-limit] Redis REST hatasi:", error);
     if (process.env.NODE_ENV === "production") {
-      throw new Error("Admin rate limiting unavailable in production: Redis REST request failed");
+      console.warn(
+        "[admin-rate-limit] Redis REST isteginde hata; in-memory rate limiting kullaniliyor.",
+      );
     }
 
     return checkRateLimit(request, options);
