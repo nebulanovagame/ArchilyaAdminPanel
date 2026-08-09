@@ -11,7 +11,16 @@ async function getHandler() {
 async function postHandler(request: Request) {
   const originError = rejectCrossSiteMutation(request);
   if (originError) return originError;
-  return proxyCodexAdminRequest("/auth/codex/session", "POST", 20_000);
+
+  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+  const accountId = typeof body.accountId === "number" ? body.accountId : undefined;
+
+  return proxyCodexAdminRequest(
+    "/auth/codex/session",
+    "POST",
+    20_000,
+    accountId !== undefined ? { accountId } : undefined,
+  );
 }
 
 export const GET = withRateLimit(getHandler, adminRateLimits.read);

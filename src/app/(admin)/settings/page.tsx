@@ -9,8 +9,11 @@ import {
   ExternalLink,
   KeyRound,
   RefreshCw,
+  RotateCcw,
   Server,
   ShieldCheck,
+  ShieldOff,
+  Users,
   TriangleAlert,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -25,7 +28,9 @@ import {
   getActiveCodexSession,
   getCodexConnectionStatus,
   getCodexSession,
+  resetCodexAccount,
   verifyCodexConnection,
+  type CodexAccountHealthStatus,
   type CodexConnectionState,
   type CodexConnectionStatus,
   type CodexDeviceAuthSession,
@@ -65,6 +70,15 @@ const CONNECTION_META: Record<
   },
 };
 
+const ACCOUNT_HEALTH_META: Record<
+  CodexAccountHealthStatus,
+  { label: string; variant: BadgeVariant; icon: typeof ShieldCheck }
+> = {
+  healthy: { label: "Sağlıklı", variant: "success", icon: ShieldCheck },
+  degraded: { label: "Yavaşlatılmış", variant: "warning", icon: Clock3 },
+  quarantined: { label: "Karantinada", variant: "danger", icon: ShieldOff },
+};
+
 const SESSION_LABELS: Record<string, string> = {
   pending: "Tarayıcı girişi bekleniyor",
   authorized: "Kimlik alındı, doğrulanıyor",
@@ -98,6 +112,7 @@ export default function SettingsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [resettingAccountId, setResettingAccountId] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
 
@@ -175,10 +190,10 @@ export default function SettingsPage() {
     }
   };
 
-  const handleCreateSession = async () => {
+  const handleCreateSession = async (accountId?: number) => {
     setCreating(true);
     try {
-      const created = await createCodexSession();
+      const created = await createCodexSession(accountId);
       setLaunch(created);
       setSession({
         id: created.sessionId,
@@ -197,6 +212,19 @@ export default function SettingsPage() {
       toast.error(message);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleResetAccount = async (accountId: number) => {
+    setResettingAccountId(accountId);
+    try {
+      await resetCodexAccount(accountId);
+      toast.success("Hesap sağlıklı duruma getirildi.");
+      await loadState(true);
+    } catch (resetError) {
+      toast.error(getErrorMessage(resetError));
+    } finally {
+      setResettingAccountId(null);
     }
   };
 
@@ -283,7 +311,7 @@ export default function SettingsPage() {
               <CheckCircle2 className="h-3.5 w-3.5" />
               Bağlantıyı doğrula
             </Button>
-            <Button variant="secondary" onClick={handleCreateSession} loading={creating}>
+            <Button variant="secondary" onClick={() => void handleCreateSession()} loading={creating}>
               <KeyRound className="h-3.5 w-3.5" />
               Yeni sunucu bağlantısı
             </Button>
@@ -368,11 +396,112 @@ export default function SettingsPage() {
           {!launch && sessionActive && (
             <p className="mt-5 border-t border-white/5 pt-4 text-xs leading-5 text-gray-500">
               Güvenlik nedeniyle tek kullanımlık bağlantı yeniden gösterilemez. Önceki sekme
-              kapandıysa “Yeni sunucu bağlantısı” ile bu oturumu sonlandırıp yenisini oluşturun.
+              kapandıysa &ldquo;Yeni sunucu bağlantısı&rdquo; ile bu oturumu sonlandırıp yenisini oluşturun.
             </p>
           )}
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Codex Hesapları</CardTitle>
+          <CardDescription>Havuzdaki ChatGPT Plus hesaplarının durumu</CardDescription>
+        </CardHeader>
+
+        <div className="text-sm text-gray-400">
+          {status?.accounts && status.accounts.length > 0 ? (
+            <>
+              <div className="mb-4 flex items-center gap-2 text-xs text-gray-500">
+                <Users className="h-3.5 w-3.5" />
+                <span>
+                  {status.totalAccounts ?? status.accounts.length} / {status.enabledAccounts ?? status.accounts.length} hesap sağlıklı ·{" "}
+                  {status.availableAccounts ?? status.accounts.length} uygun
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {status.accounts.map((account) => {
+                  const healthMeta = ACCOUNT_HEALTH_META[account.healthStatus];
+                  const HealthIcon = healthMeta.icon;
+                  const isResetting = resettingAccountId === account.id;
+                  const needsReset = account.healthStatus === "quarantined" || account.healthStatus === "degraded";
+
+                  return (
+                    <div
+                      key={account.id}
+                      className="flex flex-col gap-3 rounded-sm border border-white/5 bg-black/10 p-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-gray-200">
+                            Hesap #{account.id}
+                          </span>
+                          <Badge variant={healthMeta.variant} className="text-[9px]">
+                            <HealthIcon className="mr-1 h-2.5 w-2.5" />
+                            {healthMeta.label}
+                          </Badge>
+                          {!account.enabled && (
+                            <Badge variant="neutral" className="text-[9px]">Pasif</Badge>
+                          )}
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500">
+                          {account.lastUsedAt && (
+                            <span>Son kullanım: {formatDate(account.lastUsedAt)}</span>
+                          )}
+                          {account.expiresAt && (
+                            <span>Süre dolumu: {formatDate(account.expiresAt)}</span>
+                          )}
+                          {account.cooldownUntil && (
+                            <span>
+                              Soğuma: {formatDate(account.cooldownUntil)}
+                            </span>
+                          )}
+                          {account.lastError && (
+                            <span className="text-red-400/70">
+                              Son hata: {account.lastError}
+                            </span>
+                          )}
+                          {account.consecutiveFailures > 0 && (
+                            <span className="text-red-400/70">
+                              Üst üste {account.consecutiveFailures} hata
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void handleCreateSession(account.id)}
+                          loading={creating}
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Yeniden bağla
+                        </Button>
+                        {needsReset && (
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => void handleResetAccount(account.id)}
+                            loading={isResetting}
+                          >
+                            <ShieldOff className="h-3 w-3" />
+                            Karantinadan çıkar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-gray-600">Havuzda hesap yok</p>
+          )}
+        </div>
+      </Card>
     </div>
   );
 }

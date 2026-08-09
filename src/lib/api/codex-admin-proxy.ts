@@ -25,6 +25,7 @@ export async function proxyCodexAdminRequest(
   path: string,
   method: ProxyMethod,
   timeoutMs = 15_000,
+  body?: unknown,
 ): Promise<NextResponse> {
   const guard = await requireAdmin();
   if (guard instanceof NextResponse) return guard;
@@ -40,7 +41,7 @@ export async function proxyCodexAdminRequest(
       );
     }
 
-    const response = await fetch(`${getBackendBaseUrl()}${path}`, {
+    const init: RequestInit = {
       method,
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -48,7 +49,17 @@ export async function proxyCodexAdminRequest(
       },
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
-    });
+    };
+
+    if (body !== undefined && method !== "GET") {
+      init.headers = {
+        ...init.headers,
+        "Content-Type": "application/json",
+      };
+      init.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(`${getBackendBaseUrl()}${path}`, init);
     const payload = await response.json().catch(() => ({
       error: {
         message: "Backend gecersiz bir yanit verdi.",

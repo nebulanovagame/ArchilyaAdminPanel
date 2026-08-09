@@ -5,6 +5,28 @@ export type CodexConnectionState =
   | "incomplete"
   | "missing";
 
+export type CodexAccountHealthStatus = "healthy" | "degraded" | "quarantined";
+
+export type CodexPoolAccount = {
+  id: number;
+  enabled: boolean;
+  healthStatus: CodexAccountHealthStatus;
+  consecutiveFailures: number;
+  cooldownUntil: string | null;
+  lastError: string | null;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+};
+
+export type CodexPrimaryAccountHealth = {
+  enabled: boolean;
+  healthStatus: CodexAccountHealthStatus;
+  consecutiveFailures: number;
+  cooldownUntil: string | null;
+  lastUsedAt: string | null;
+  lastErrorCode: string | null;
+};
+
 export type CodexConnectionStatus = {
   connected: boolean;
   state: CodexConnectionState;
@@ -20,6 +42,12 @@ export type CodexConnectionStatus = {
   updatedAt: string | null;
   providerReachable?: boolean;
   verifiedAt?: string;
+  totalAccounts?: number;
+  enabledAccounts?: number;
+  healthyAccounts?: number;
+  availableAccounts?: number;
+  primaryAccountHealth?: CodexPrimaryAccountHealth;
+  accounts?: CodexPoolAccount[];
 };
 
 export type CodexDeviceAuthStatus =
@@ -69,12 +97,26 @@ export class CodexAdminApiError extends Error {
   }
 }
 
-async function request<T>(path: string, method: "GET" | "POST" = "GET"): Promise<T> {
-  const response = await fetch(path, {
+async function request<T>(
+  path: string,
+  method: "GET" | "POST" = "GET",
+  body?: unknown,
+): Promise<T> {
+  const init: RequestInit = {
     method,
     headers: { Accept: "application/json" },
     cache: "no-store",
-  });
+  };
+
+  if (body !== undefined && method !== "GET") {
+    init.headers = {
+      ...init.headers,
+      "Content-Type": "application/json",
+    };
+    init.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(path, init);
   const payload = await response.json().catch(() => ({})) as T & ApiErrorPayload;
 
   if (!response.ok) {
@@ -106,8 +148,21 @@ export function getCodexSession(id: string): Promise<CodexDeviceAuthSession> {
   return request(`/api/admin/codex/session/${encodeURIComponent(id)}`);
 }
 
-export function createCodexSession(): Promise<CodexLaunchSession> {
-  return request("/api/admin/codex/session", "POST");
+export function createCodexSession(accountId?: number): Promise<CodexLaunchSession> {
+  return request(
+    "/api/admin/codex/session",
+    "POST",
+    accountId !== undefined ? { accountId } : undefined,
+  );
+}
+
+export async function resetCodexAccount(
+  accountId: number,
+): Promise<{ success: boolean; account: CodexPoolAccount }> {
+  return request(
+    `/api/admin/codex/accounts/${accountId}/reset`,
+    "POST",
+  );
 }
 
 export function formatRemainingTime(seconds: number | null): string {
