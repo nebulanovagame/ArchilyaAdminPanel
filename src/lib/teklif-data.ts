@@ -499,3 +499,124 @@ export const DISTRIBUTION_COLORS = [
   'bg-cyan-400',
   'bg-orange-400',
 ];
+
+/* ─── OFİS DESTEK HİZMETLERİ (mimarlık ofisleri için tekniker seviyesi fiyatlar) ─── */
+
+export interface OfficePackage {
+  id: string;
+  name: string;
+  description: string;
+  serviceIds: string[];
+  badge?: string | null;
+  color?: 'primary' | 'amber';
+  note?: string;
+}
+
+export const OFFICE_SERVICES: Service[] = [
+  {
+    id: 'ofis-etut-rolove',
+    name: 'Etüt / Rölöve Çizimi',
+    description: 'Mimarlık ofisleri için yerinde ölçüm, mevcut durum tespiti ve CAD ortamında rölöve çizim hizmeti.',
+    basePrice: 2500,
+    perM2: 3,
+    minPrice: 2000,
+    category: 'arch',
+    group: 'mimari-proje',
+    defaultM2: 100,
+    features: ['Yerinde ölçüm ve rölöve çizimi', 'Mevcut durum planı (CAD)', 'Kat planı ve kesit çizimi', '2 revizyon hakkı'],
+  },
+  {
+    id: 'ofis-avan-cizim',
+    name: 'Avan Proje Çizimi (Ofis Desteği)',
+    description: 'Ofisin tasarım kararları doğrultusunda avan proje paftalarının çizime dönüştürülmesi.',
+    basePrice: 4000,
+    category: 'arch',
+    group: 'mimari-proje',
+    defaultM2: 200,
+    features: ['Kat planları ve kesitler (1/200)', 'Cephe görünüşleri', 'Alan hesap cetveli', 'CAD kaynak dosya teslimi'],
+  },
+  {
+    id: 'ofis-ruhsat-cizim',
+    name: 'Ruhsat Projesi Çizimi (Ofis Desteği)',
+    description: 'Belediye onay formatında ruhsat projesi paftalarının hazırlanması.',
+    basePrice: 4000,
+    perM2: 4,
+    minPrice: 5000,
+    category: 'arch',
+    group: 'mimari-proje',
+    defaultM2: 100,
+    features: ['Belediye onay formatında çizimler', 'Kat planları ve kesitler', 'Vaziyet planı', 'Mevzuat uyum raporu'],
+  },
+  {
+    id: 'ofis-uygulama-cizim',
+    name: 'Uygulama Projesi Çizimi (Ofis Desteği)',
+    description: 'Şantiye imalatına yönelik uygulama paftalarının çizime dönüştürülmesi.',
+    basePrice: 5000,
+    category: 'arch',
+    group: 'mimari-proje',
+    defaultM2: 100,
+    features: ['Uygulama plan ve detayları', 'Sistem ve birleşim detayları', 'Kapı-pencere doğrama çizelgeleri', 'CAD kaynak dosya teslimi'],
+  },
+  {
+    id: 'ofis-modelleme',
+    name: '3D Modelleme (Ofis Desteği)',
+    description: 'Ofis projelerinin kaynak dosyayla teslim edilen yüksek kaliteli 3D modeli.',
+    basePrice: 7000,
+    category: 'arch',
+    group: 'gorsellestirme',
+    defaultM2: 100,
+    features: ['Yüksek detaylı 3D model (LOD 200-400)', 'Tüm CAD/BIM formatları', 'Kaynak dosya teslimi', '2 revizyon hakkı'],
+  },
+  {
+    id: 'ofis-ic-gorsellestirme',
+    name: 'İç Mekan Görselleştirme (Ofis Desteği)',
+    description: 'İç mekan render seti — mobilyalı, detaylı aydınlatma ve materyal çalışması.',
+    basePrice: 6000,
+    category: 'arch',
+    group: 'gorsellestirme',
+    defaultM2: 100,
+    features: ['Mobilyalı ve detaylı render', 'Oda bazlı ışıklandırma', 'Malzeme ve doku çalışması', '2 revizyon hakkı'],
+  },
+  {
+    id: 'ofis-dis-gorsellestirme',
+    name: 'Dış Mekan Görselleştirme (Ofis Desteği)',
+    description: 'Cephe, çatı, peyzaj ve vaziyet planını kapsayan dış mekan render seti.',
+    basePrice: 4500,
+    category: 'arch',
+    group: 'gorsellestirme',
+    defaultM2: 100,
+    features: ['Dış cephe + çatı render', 'Peyzaj ve vaziyet planı', 'Doğal gün ışığı aydınlatma', '2 revizyon hakkı'],
+  },
+];
+
+export const OFFICE_PACKAGES: OfficePackage[] = [
+  {
+    id: 'tekniker-cizim',
+    name: 'Tekniker Çizim Desteği',
+    description: 'Mimarlık ofislerinin günlük çizim iş yükünü karşılayan tekniker seviyesinde destek paketi.',
+    serviceIds: ['ofis-etut-rolove', 'ofis-avan-cizim', 'ofis-ruhsat-cizim', 'ofis-uygulama-cizim'],
+    badge: 'En çok talep edilen',
+    color: 'primary',
+  },
+  {
+    id: '3d-gorsellestirme',
+    name: '3D & Görselleştirme',
+    description: 'Ofis projeleri için modelleme ve render hizmetlerini birleştiren görselleştirme paketi.',
+    serviceIds: ['ofis-modelleme', 'ofis-ic-gorsellestirme', 'ofis-dis-gorsellestirme'],
+    color: 'amber',
+  },
+  {
+    id: 'cephe-tasarim',
+    name: 'Cephe & Tasarım',
+    description: 'Cephe ve konsept tasarım hizmetleri — tam fiyatlı premium katman, tekniker indirimi uygulanmaz.',
+    serviceIds: ['cephe', 'konsept', 'ic-mekan'],
+    color: 'primary',
+    note: 'Tasarım hizmetleri tam fiyatlıdır.',
+  },
+];
+
+export function getOfficeServicesByPackage(pkg: OfficePackage): Service[] {
+  return pkg.serviceIds
+    .map((id) => OFFICE_SERVICES.find((s) => s.id === id) ?? ALL_SERVICES.find((s) => s.id === id))
+    .filter((s): s is Service => Boolean(s));
+}
