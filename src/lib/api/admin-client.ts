@@ -37,6 +37,10 @@ import type {
   FeedbackStatus,
   OfferServiceRecord,
   OfferRecord,
+  CouponRecord,
+  CouponStats,
+  CouponDiscountType,
+  CouponRedemptionRecord,
 } from "./types";
 
 import {
@@ -53,6 +57,8 @@ import {
   MOCK_PARTNER_FIRMS,
   MOCK_FRANCHISE_APPLICATIONS,
   MOCK_FEEDBACK_ITEMS,
+  MOCK_COUPONS,
+  MOCK_COUPON_REDEMPTIONS,
   delay,
 } from "./mock-data";
 
@@ -876,5 +882,185 @@ export async function getOffer(id: string): Promise<OfferRecord> {
     () => {
       throw new AdminApiError("Teklif bulunamadi", 404, "not-found");
     },
+  );
+}
+
+// ─── Coupons ───────────────────────────────────────────
+
+export async function listCoupons(): Promise<CouponRecord[]> {
+  return fetchWithFallback(
+    "/api/admin/coupons",
+    "/admin/coupons",
+    () => [...MOCK_COUPONS],
+  );
+}
+
+export async function createCoupon(
+  data: {
+    code: string;
+    description: string;
+    discountType: CouponDiscountType;
+    discountValue: number;
+    discountDurationMonths: number;
+    maxUses: number;
+    expiresAt: string | null;
+    appliesToPlans: string[];
+    isActive: boolean;
+  },
+): Promise<CouponRecord> {
+  return postWithFallback(
+    "/api/admin/coupons",
+    "/admin/coupons",
+    data as unknown as Record<string, unknown>,
+    () => ({
+      ...data,
+      id: `cp-${Date.now()}`,
+      usedCount: 0,
+      createdBy: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }),
+  );
+}
+
+export async function updateCoupon(
+  id: string,
+  data: Partial<Omit<CouponRecord, "id" | "createdAt" | "updatedAt" | "usedCount" | "createdBy">>,
+): Promise<CouponRecord> {
+  try {
+    const localRes = await fetch(`/api/admin/coupons/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (localRes.ok) {
+      const json = await localRes.json();
+      return (json.data ?? json) as CouponRecord;
+    }
+    const err = await localRes.json().catch(() => ({}));
+    throw new AdminApiError(
+      err?.error?.message || "Kupon guncellenemedi",
+      localRes.status,
+      err?.error?.code || "unknown",
+    );
+  } catch (e) {
+    if (e instanceof AdminApiError) throw e;
+  }
+
+  if (API_BASE && _accessToken) {
+    try {
+      const res = await fetch(`${API_BASE}/admin/coupons/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${_accessToken}`,
+        },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return (json.data ?? json) as CouponRecord;
+      }
+      const err = await res.json().catch(() => ({}));
+      throw new AdminApiError(
+        err?.error?.message || "Kupon guncellenemedi",
+        res.status,
+        err?.error?.code || "unknown",
+      );
+    } catch (e) {
+      if (e instanceof AdminApiError) throw e;
+    }
+  }
+
+  if (isMockAllowed()) {
+    await delay(300);
+    const coupon = MOCK_COUPONS.find((c) => c.id === id);
+    if (!coupon) throw new AdminApiError("Kupon bulunamadi", 404, "not-found");
+    return { ...coupon, ...data, updatedAt: new Date().toISOString() };
+  }
+
+  throw new AdminApiError(
+    "Admin API su anda kullanilamiyor. Lutfen daha sonra tekrar deneyin.",
+    503,
+    "service_unavailable",
+  );
+}
+
+export async function deleteCoupon(id: string): Promise<{ success: boolean }> {
+  try {
+    const localRes = await fetch(`/api/admin/coupons/${id}`, {
+      method: "DELETE",
+    });
+    if (localRes.ok) {
+      const json = await localRes.json();
+      return (json.data ?? json) as { success: boolean };
+    }
+    const err = await localRes.json().catch(() => ({}));
+    throw new AdminApiError(
+      err?.error?.message || "Kupon silinemedi",
+      localRes.status,
+      err?.error?.code || "unknown",
+    );
+  } catch (e) {
+    if (e instanceof AdminApiError) throw e;
+  }
+
+  if (API_BASE && _accessToken) {
+    try {
+      const res = await fetch(`${API_BASE}/admin/coupons/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${_accessToken}`,
+        },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return (json.data ?? json) as { success: boolean };
+      }
+      const err = await res.json().catch(() => ({}));
+      throw new AdminApiError(
+        err?.error?.message || "Kupon silinemedi",
+        res.status,
+        err?.error?.code || "unknown",
+      );
+    } catch (e) {
+      if (e instanceof AdminApiError) throw e;
+    }
+  }
+
+  if (isMockAllowed()) {
+    await delay(300);
+    return { success: true };
+  }
+
+  throw new AdminApiError(
+    "Admin API su anda kullanilamiyor. Lutfen daha sonra tekrar deneyin.",
+    503,
+    "service_unavailable",
+  );
+}
+
+export async function getCouponStats(): Promise<CouponStats> {
+  return fetchWithFallback(
+    "/api/admin/coupons/stats",
+    "/admin/coupons/stats",
+    () => ({
+      totalCoupons: MOCK_COUPONS.length,
+      activeCoupons: MOCK_COUPONS.filter((c) => c.isActive).length,
+      totalRedemptions: MOCK_COUPONS.reduce((sum, c) => sum + c.usedCount, 0),
+      expiredCoupons: MOCK_COUPONS.filter(
+        (c) => c.expiresAt && new Date(c.expiresAt) < new Date(),
+      ).length,
+    }),
+  );
+}
+
+export async function listCouponRedemptions(): Promise<CouponRedemptionRecord[]> {
+  return fetchWithFallback(
+    "/api/admin/coupons/redemptions",
+    "/admin/coupons/redemptions",
+    () => [...MOCK_COUPON_REDEMPTIONS],
   );
 }

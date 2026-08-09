@@ -469,6 +469,44 @@ export type OfferRecord = {
   updatedAt: string;
 };
 
+// ─── Coupon System ──────────────────────────────────────
+
+export type CouponDiscountType = "percent" | "fixed";
+
+export type CouponRecord = {
+  id: string;
+  code: string;
+  description: string;
+  discountType: CouponDiscountType;
+  discountValue: number;
+  discountDurationMonths: number;
+  maxUses: number;
+  usedCount: number;
+  isActive: boolean;
+  expiresAt: string | null;
+  appliesToPlans: string[];
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CouponStats = {
+  totalCoupons: number;
+  activeCoupons: number;
+  totalRedemptions: number;
+  expiredCoupons: number;
+};
+
+export type CouponRedemptionRecord = {
+  id: string;
+  code: string;
+  discountType: CouponDiscountType;
+  discountValue: number;
+  email: string;
+  displayName: string | null;
+  redeemedAt: string;
+};
+
 // ─── Health Status ─────────────────────────────────────
 
 export type HealthStatus = {
