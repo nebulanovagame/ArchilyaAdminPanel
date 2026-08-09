@@ -133,7 +133,9 @@ export async function proxy(request: NextRequest) {
 
     if (user) {
       const url = request.nextUrl.clone();
-      url.pathname = "/admin/dashboard";
+      // NOTE: (admin) is a route group — it does NOT appear in URLs.
+      // The real dashboard route is /dashboard; /admin/dashboard 404s.
+      url.pathname = "/dashboard";
       return applySecurityHeaders(NextResponse.redirect(url));
     }
   }
