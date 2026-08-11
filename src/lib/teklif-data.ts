@@ -78,7 +78,9 @@ export function unitSavingPct(m2: number): number {
 
 export function calcServicePrice(service: Service, m2: number, memberDiscountPct: number = 20): PriceResult | null {
   if (m2 >= 5000) return null;
-  // ŞİMDİLİK: normal fiyat = abone fiyatı. İndirim doğrudan normal fiyata uygulanır; teklifte tek fiyat gösterilir.
+  // Abone tarifesi %20 indirimli tek tarifedir; normal tarife henüz ayrı tanımlı
+  // olmadığından teklifte tek fiyat gösterilir. Toggle yalnızca Pro/Studio abonesi
+  // müşteriler için açılmalıdır (vaat matrisi: discount-policy.ts ile aynı).
   const baseTotal = service.perM2 != null
     ? service.perM2 * m2
     : calcPrice(service.basePrice, m2);

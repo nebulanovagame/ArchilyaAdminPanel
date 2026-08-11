@@ -994,8 +994,8 @@ export default function TeklifSunumPage() {
                     </button>
                     <p className="text-[9px] text-gray-600 font-medium">
                       {memberDiscountOn
-                        ? "Şimdilik normal fiyatlar abone fiyatıyla aynıdır: %20 indirimli tarife uygulanır."
-                        : "Kapalıyken fiyatlar standart tarife üzerinden gösterilir."}
+                        ? "%20 abone tarifesi uygulanıyor. Yalnızca Pro veya Studio abonesi müşteriler için açın."
+                        : "Standart tarife üzerinden fiyatlandırılır. Pro/Studio abonesi müşteriler için %20 abone indirimini açabilirsiniz."}
                     </p>
                   </div>
                   {/* Extra discount percent */}
