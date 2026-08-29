@@ -15,10 +15,14 @@ async function handler() {
     const [
       { count: totalUsers },
       { count: activeWorkspaces },
+      { count: activeSubscriptions },
+      { count: pendingRenderJobs },
       { data: creditData },
     ] = await Promise.all([
       supabase.from("profiles").select("*", { count: "exact", head: true }),
-      supabase.from("workspaces").select("*", { count: "exact", head: true }).eq("status", "active"),
+      supabase.from("workspaces").select("*", { count: "exact", head: true }).eq("is_active", true),
+      supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("status", "active"),
+      supabase.from("ai_studio_jobs").select("*", { count: "exact", head: true }).in("status", ["pending", "queued", "running"]),
       supabase.from("profiles").select("total_spent"),
     ]);
 
@@ -32,8 +36,8 @@ async function handler() {
         totalUsers: totalUsers || 0,
         activeWorkspaces: activeWorkspaces || 0,
         totalCreditUsage,
-        activeSubscriptions: 0,
-        pendingRenderJobs: 0,
+        activeSubscriptions: activeSubscriptions || 0,
+        pendingRenderJobs: pendingRenderJobs || 0,
         systemStatus: "healthy" as const,
       },
     });

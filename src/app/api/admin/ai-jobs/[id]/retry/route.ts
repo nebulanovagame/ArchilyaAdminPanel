@@ -1,11 +1,16 @@
 import "server-only";
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/admin-guard";
 import { adminRateLimits, withRateLimit } from "@/lib/api/rate-limit";
 import { rejectCrossSiteMutation } from "@/lib/api/security";
 import { writeAdminAuditLog } from "@/lib/api/audit";
 import { captureApiError } from "@/lib/api/sentry-bridge";
+
+function getApiBaseUrl() {
+  return process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL?.replace(/\/$/, "") || "";
+}
 
 async function handler(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originError = rejectCrossSiteMutation(request);
@@ -40,6 +45,44 @@ async function handler(request: Request, { params }: { params: Promise<{ id: str
       );
     }
 
+    // Prefer the backend admin API: its retry endpoint resets the job AND
+    // triggers real processing (processAiStudioJob). The local DB-only update
+    // cannot do that — the background worker is disabled in production, so a
+    // local-only retry would leave the job stuck at "pending" forever.
+    const apiBaseUrl = getApiBaseUrl();
+    if (apiBaseUrl) {
+      const serverClient = await createClient();
+      const { data: { session } } = await serverClient.auth.getSession();
+      const accessToken = session?.access_token;
+
+      if (accessToken) {
+        const upstream = await fetch(`${apiBaseUrl}/admin/ai-jobs/${id}/retry`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ reason }),
+          signal: AbortSignal.timeout(8000),
+        });
+        const payload = await upstream.json().catch(() => null);
+
+        if (upstream.ok) {
+          // Backend writes its own audit log + job event + processing trigger.
+          return NextResponse.json(payload);
+        }
+
+        // Delegation failed — do NOT fall back to the local-only update (it
+        // would silently leave the job unprocessed). Surface the backend error.
+        return NextResponse.json(
+          payload || { error: { message: "Backend retry istegi basarisiz", code: "upstream-error" } },
+          { status: upstream.status },
+        );
+      }
+    }
+
+    // No backend API configured: best-effort local update. The job will only
+    // be processed if the background worker is enabled.
     const billing = ((job as Record<string, unknown>).billing as Record<string, unknown> | null) || {};
     const nextBilling = { ...billing };
 

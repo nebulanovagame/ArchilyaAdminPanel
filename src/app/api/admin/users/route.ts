@@ -21,12 +21,22 @@ async function handler() {
 
   try {
     const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, email, display_name, is_admin, photo_url, created_at, updated_at, credits, subscription_plan, subscription_status, total_spent, status")
-      .order("created_at", { ascending: false });
+    const [{ data, error }, { data: memberships }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, email, display_name, is_admin, photo_url, created_at, updated_at, credits, subscription_plan, subscription_status, total_spent, status")
+        .order("created_at", { ascending: false }),
+      supabase.from("workspace_members").select("user_id"),
+    ]);
 
     if (error) throw error;
+
+    // Real workspace count per user (mirrors the backend admin router).
+    const workspaceCountMap: Record<string, number> = {};
+    (memberships || []).forEach((m: Record<string, unknown>) => {
+      const uid = m.user_id as string;
+      if (uid) workspaceCountMap[uid] = (workspaceCountMap[uid] || 0) + 1;
+    });
 
     const users = (data || []).map((p: Record<string, unknown>) => ({
       id: p.id as string,
@@ -37,7 +47,7 @@ async function handler() {
       status: parseStatus(p.status),
       createdAt: (p.created_at as string) || new Date().toISOString(),
       lastSignInAt: null,
-      workspaceCount: 0,
+      workspaceCount: workspaceCountMap[p.id as string] || 0,
       credits: (p.credits as number) || 0,
       totalCreditsUsed: Number(p.total_spent) || 0,
     }));

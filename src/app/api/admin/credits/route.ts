@@ -35,7 +35,9 @@ async function handler() {
         id: String(c.id),
         userEmail: (profiles?.email as string) || "",
         amount: (c.amount as number) || 0,
-        type: TYPE_MAP[(c.type as string)] || "grant",
+        // Fallback matches the backend: unknown type → raw type, empty → 'usage'
+        // (previously 'grant', which mislabeled any new credit type).
+        type: (TYPE_MAP[(c.type as string)] ?? ((c.type as string) || "usage")) as "grant" | "usage" | "refund" | "purchase",
         description: (c.description as string) || "",
         createdAt: (c.created_at as string) || new Date().toISOString(),
       };

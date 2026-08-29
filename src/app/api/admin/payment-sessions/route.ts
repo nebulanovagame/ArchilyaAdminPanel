@@ -49,7 +49,8 @@ async function handler(request: Request) {
 
     const upstreamParams = new URLSearchParams();
     upstreamParams.set("page", String(page));
-    upstreamParams.set("limit", String(limit));
+    // Backend parsePagination reads `perPage`, not `limit`.
+    upstreamParams.set("perPage", String(limit));
 
     const status = searchParams.get("status");
     if (status && ["pending", "completed", "failed"].includes(status)) {
@@ -73,14 +74,39 @@ async function handler(request: Request) {
       );
     }
 
-    // Normalize backend { data, meta } to UI { items, page, limit, total, totalPages }
-    const items = rawPayload?.data ?? rawPayload?.items ?? [];
+    // Normalize backend { data, meta } to UI { items, page, limit, total, totalPages }.
+    // Backend meta: { status, days, perPage, page, total, hasMore, count } — `total`
+    // is the real row count, `count` is only the current page's item count.
+    const rawItems = rawPayload?.data ?? rawPayload?.items ?? [];
     const meta = rawPayload?.meta ?? {};
-    const totalCount = typeof meta.count === "number" ? meta.count : (Array.isArray(items) ? items.length : 0);
-    const limitNum = typeof meta.limit === "number" ? meta.limit : 20;
+    const totalCount =
+      typeof meta.total === "number"
+        ? meta.total
+        : typeof meta.count === "number"
+          ? meta.count
+          : Array.isArray(rawItems)
+            ? rawItems.length
+            : 0;
+    const limitNum = typeof meta.perPage === "number" ? meta.perPage : 20;
+    const currentPage = typeof meta.page === "number" ? meta.page : 1;
+
+    // Backend items are camelCase but use `id` (= token || row id) and `planId`;
+    // the UI consumes `token` and `plan` — map them here.
+    const items = (Array.isArray(rawItems) ? rawItems : []).map(
+      (item: Record<string, unknown>) => ({
+        token: String(item.id ?? item.token ?? ""),
+        userEmail: String(item.userEmail ?? ""),
+        plan: String(item.planId ?? item.plan ?? ""),
+        status: String(item.status ?? "pending"),
+        amount: Number(item.amount) || 0,
+        credits: Number(item.credits) || 0,
+        createdAt: item.createdAt ? String(item.createdAt) : "",
+      }),
+    );
+
     const normalizedPayload = {
-      items: Array.isArray(items) ? items : [],
-      page: 1,
+      items,
+      page: currentPage,
       limit: limitNum,
       total: totalCount,
       totalPages: Math.max(1, Math.ceil(totalCount / limitNum)),

@@ -22,11 +22,23 @@ async function handler() {
     const subscriptions = (data || []).map((s: Record<string, unknown>) => {
       const profiles = s.profiles as Record<string, unknown> | undefined;
 
+      // Same Turkish plan labels as the backend admin router.
+      const planNames: Record<string, string> = {
+        free: "Ücretsiz",
+        solo: "Solo",
+        pro: "Profesyonel",
+        studio: "Studio",
+        emlak_beta: "Emlak Beta",
+      };
+      const rawStatus = ((s.status as string) || "active").toLowerCase();
+      // Backend writes 'cancelled' (double l); the panel type/badges use 'canceled'.
+      const normalizedStatus = rawStatus === "cancelled" ? "canceled" : rawStatus;
+
       return {
         id: String(s.id),
         userEmail: (profiles?.email as string) || "",
-        planName: (s.plan as string) || "",
-        status: ((s.status as string) || "active") as "active" | "canceled" | "past_due" | "trialing",
+        planName: planNames[(s.plan as string)] || ((s.plan as string) || ""),
+        status: normalizedStatus as "active" | "canceled" | "past_due" | "trialing",
         currentPeriodStart: (s.current_period_start as string) || new Date().toISOString(),
         currentPeriodEnd: (s.current_period_end as string) || new Date().toISOString(),
         amount: 0,

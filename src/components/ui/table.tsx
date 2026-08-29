@@ -77,6 +77,7 @@ export function TableStatus({ status }: { status: string }) {
     processing: "info",
     failed: "danger",
     canceled: "danger",
+  cancelled: "danger",
     revoked: "danger",
     expired: "danger",
     past_due: "danger",

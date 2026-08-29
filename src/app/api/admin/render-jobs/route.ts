@@ -12,23 +12,33 @@ async function handler() {
     const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("ai_studio_jobs")
-      .select(`id, user_id, tool_id, status, created_at, completed_at, credit_cost,
+      .select(`id, user_id, tool_id, status, metadata, created_at, completed_at, credit_cost,
         profiles!user_id(email)`)
       .order("created_at", { ascending: false })
       .limit(50);
 
     if (error) throw error;
 
+    // Normalize statuses the same way the backend admin router's formatAiJob
+    // does, so both paths render identical values.
+    const statusMap: Record<string, string> = {
+      pending: "queued",
+      running: "processing",
+      cancelled: "canceled",
+    };
+
     const jobs = (data || []).map((j: Record<string, unknown>) => {
       const profiles = j.profiles as Record<string, unknown> | undefined;
+      const metadata = (j.metadata as Record<string, unknown> | null) || {};
+      const rawStatus = (j.status as string) || "unknown";
 
       return {
         id: String(j.id),
         type: "ai" as const,
-        status: (j.status as string) || "unknown",
+        status: statusMap[rawStatus] || rawStatus,
         userEmail: (profiles?.email as string) || "",
-        projectName: (j.tool_id as string) || "",
-        progress: j.status === "completed" ? 100 : j.status === "failed" ? 0 : 50,
+        projectName: (metadata.projectName as string) || (j.tool_id as string) || "",
+        progress: rawStatus === "completed" ? 100 : rawStatus === "failed" ? 0 : 50,
         createdAt: (j.created_at as string) || new Date().toISOString(),
         completedAt: (j.completed_at as string) || null,
       };

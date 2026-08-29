@@ -46,7 +46,8 @@ async function handler() {
         projectCount: projectCountMap[w.id as string] || 0,
         memberCount: memberCountMap[w.id as string] || 0,
         storageUsed: (w.used_storage as number) || 0,
-        status: w.is_active ? ("active" as const) : ("suspended" as const),
+        // Backend admin router uses 'archived' for inactive workspaces.
+        status: w.is_active ? ("active" as const) : ("archived" as const),
         createdAt: (w.created_at as string) || new Date().toISOString(),
       };
     });

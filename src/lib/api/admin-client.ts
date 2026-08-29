@@ -108,7 +108,7 @@ function isMockAllowed(): boolean {
 /** Try local API route first, then external API, then mock fallback (dev only) */
 async function fetchWithFallback<T>(
   localPath: string,
-  externalPath: string,
+  externalPath: string | null,
   mockFn: () => T,
 ): Promise<T> {
   // 1. Try local API route
@@ -122,8 +122,9 @@ async function fetchWithFallback<T>(
     // network error — try next
   }
 
-  // 2. Try external backend API
-  if (API_BASE && _accessToken) {
+  // 2. Try external backend API (only for endpoints the backend actually exposes;
+  // null externalPath means the feature is implemented locally via Supabase only)
+  if (externalPath && API_BASE && _accessToken) {
     try {
       const res = await fetch(`${API_BASE}${externalPath}`, {
         headers: {
@@ -233,34 +234,7 @@ export async function updateUser(
     if (e instanceof AdminApiError) throw e;
   }
 
-  // 2. Try external backend API
-  if (API_BASE && _accessToken) {
-    try {
-      const res = await fetch(`${API_BASE}/admin/users/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${_accessToken}`,
-        },
-        body: JSON.stringify(changes),
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        return (json.data ?? json) as { success: boolean };
-      }
-      const err = await res.json().catch(() => ({}));
-      throw new AdminApiError(
-        err?.error?.message || "Kullanici guncellenirken hata",
-        res.status,
-        err?.error?.code || "unknown",
-      );
-    } catch (e) {
-      if (e instanceof AdminApiError) throw e;
-    }
-  }
-
-  // 3. Mock fallback (dev only)
+  // 2. Mock fallback (dev only) — backend admin router has no PATCH /admin/users/:id
   if (isMockAllowed()) {
     await delay(300);
     return { success: true };
@@ -370,7 +344,8 @@ export async function refundAiJob(
 ): Promise<{ success: boolean; refundAmount: number }> {
   return postWithFallback(
     `/api/admin/ai-jobs/${id}/refund`,
-    `/admin/ai-jobs/${id}/refund`,
+    // Backend admin router has no ai-job refund endpoint (local Supabase route only).
+    null,
     { amount: opts?.amount, reason: opts?.reason } as Record<string, unknown>,
     () => ({ success: true, refundAmount: opts?.amount || 0 }),
   );
@@ -386,7 +361,7 @@ export async function listBetaTesters(params?: {
   const query = searchParams.toString();
   return fetchWithFallback(
     `/api/admin/beta/testers${query ? `?${query}` : ""}`,
-    "/admin/beta/testers",
+    null,
     () => ({ testers: [], total: 0, page: 1, limit: 50 }),
   );
 }
@@ -397,7 +372,7 @@ export async function updateBetaTester(
 ): Promise<{ success: boolean; message: string }> {
   return postWithFallback(
     "/api/admin/beta/testers",
-    "/admin/beta/testers",
+    null,
     { email, action },
     () => ({ success: true, message: action === "add" ? "Beta testcisi eklendi" : "Beta testcisi cikarildi" }),
   );
@@ -448,9 +423,11 @@ export async function listPaymentReconciliation(): Promise<PaymentReconciliation
 
 async function postWithFallback<T>(
   localPath: string,
-  externalPath: string,
+  externalPath: string | null,
   body: Record<string, unknown>,
   mockFn: () => T,
+  /** Optional body override for the external backend (different payload contract). */
+  externalBody?: Record<string, unknown>,
 ): Promise<T> {
   // 1. Try local API route
   try {
@@ -474,8 +451,8 @@ async function postWithFallback<T>(
     // network error — try next
   }
 
-  // 2. Try external backend API
-  if (API_BASE && _accessToken) {
+  // 2. Try external backend API (only for endpoints the backend actually exposes)
+  if (externalPath && API_BASE && _accessToken) {
     try {
       const res = await fetch(`${API_BASE}${externalPath}`, {
         method: "POST",
@@ -483,7 +460,7 @@ async function postWithFallback<T>(
           "Content-Type": "application/json",
           Authorization: `Bearer ${_accessToken}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(externalBody ?? body),
         signal: AbortSignal.timeout(5000),
       });
       if (res.ok) {
@@ -521,9 +498,11 @@ export async function grantCredits(
 ): Promise<{ success: boolean; balanceAfter: number }> {
   return postWithFallback(
     `/api/admin/users/${userId}/credits`,
-    `/admin/users/${userId}/credits`,
+    "/admin/credits/grant",
     { action: "grant", amount, description, idempotencyKey: crypto.randomUUID() },
     () => ({ success: true, balanceAfter: 50000 }),
+    // External backend contract: { userId, amount, description }
+    { userId, amount, description },
   );
 }
 
@@ -562,9 +541,11 @@ export async function deductCredits(
 ): Promise<{ success: boolean; balanceAfter: number }> {
   return postWithFallback(
     `/api/admin/users/${userId}/credits`,
-    `/admin/users/${userId}/credits`,
+    "/admin/credits/deduct",
     { action: "deduct", amount, description, idempotencyKey: crypto.randomUUID() },
     () => ({ success: true, balanceAfter: 40000 }),
+    // External backend contract: { userId, amount, description }
+    { userId, amount, description },
   );
 }
 
@@ -585,7 +566,7 @@ export async function listPartnerFirms(type?: PartnerFirmType): Promise<PartnerF
   const searchParams = type ? new URLSearchParams({ type }) : new URLSearchParams();
   const query = searchParams.toString();
   const path = `/api/admin/partner-firms${query ? `?${query}` : ""}`;
-  return fetchWithFallback(path, "/admin/partner-firms", () => {
+  return fetchWithFallback(path, null, () => {
     let items = [...MOCK_PARTNER_FIRMS];
     if (type) items = items.filter((f) => f.type === type);
     return items;
@@ -595,7 +576,7 @@ export async function listPartnerFirms(type?: PartnerFirmType): Promise<PartnerF
 export async function getPartnerFirm(id: string): Promise<PartnerFirmRecord> {
   return fetchWithFallback(
     `/api/admin/partner-firms/${id}`,
-    `/admin/partner-firms/${id}`,
+    null,
     () => {
       const firm = MOCK_PARTNER_FIRMS.find((f) => f.id === id);
       if (!firm) throw new Error("Firma bulunamadı");
@@ -609,7 +590,7 @@ export async function createPartnerFirm(
 ): Promise<PartnerFirmRecord> {
   return postWithFallback(
     "/api/admin/partner-firms",
-    "/admin/partner-firms",
+    null,
     data as unknown as Record<string, unknown>,
     () => ({
       ...data,
@@ -626,7 +607,7 @@ export async function updatePartnerFirm(
 ): Promise<PartnerFirmRecord> {
   return postWithFallback(
     `/api/admin/partner-firms/${id}`,
-    `/admin/partner-firms/${id}`,
+    null,
     { ...data, id } as unknown as Record<string, unknown>,
     () => {
       const firm = MOCK_PARTNER_FIRMS.find((f) => f.id === id);
@@ -639,7 +620,7 @@ export async function updatePartnerFirm(
 export async function deletePartnerFirm(id: string): Promise<{ success: boolean }> {
   return postWithFallback(
     `/api/admin/partner-firms/${id}/delete`,
-    `/admin/partner-firms/${id}/delete`,
+    null,
     { id },
     () => ({ success: true }),
   );
@@ -653,7 +634,7 @@ export async function listFranchiseApplications(
   const searchParams = status ? new URLSearchParams({ status }) : new URLSearchParams();
   const query = searchParams.toString();
   const path = `/api/admin/franchise-applications${query ? `?${query}` : ""}`;
-  return fetchWithFallback(path, "/admin/franchise-applications", () => {
+  return fetchWithFallback(path, null, () => {
     let items = [...MOCK_FRANCHISE_APPLICATIONS];
     if (status) items = items.filter((a) => a.status === status);
     return items;
@@ -663,7 +644,7 @@ export async function listFranchiseApplications(
 export async function getFranchiseApplication(id: string): Promise<FranchiseApplicationRecord> {
   return fetchWithFallback(
     `/api/admin/franchise-applications/${id}`,
-    `/admin/franchise-applications/${id}`,
+    null,
     () => {
       const app = MOCK_FRANCHISE_APPLICATIONS.find((a) => a.id === id);
       if (!app) throw new Error("Başvuru bulunamadı");
@@ -679,7 +660,7 @@ export async function updateFranchiseApplicationStatus(
 ): Promise<FranchiseApplicationRecord> {
   return postWithFallback(
     `/api/admin/franchise-applications/${id}`,
-    `/admin/franchise-applications/${id}`,
+    null,
     { status, adminNote } as Record<string, unknown>,
     () => {
       const app = MOCK_FRANCHISE_APPLICATIONS.find((a) => a.id === id);
@@ -705,7 +686,7 @@ export async function listFeedback(
   if (category) searchParams.set("category", category);
   const query = searchParams.toString();
   const path = `/api/admin/feedback${query ? `?${query}` : ""}`;
-  return fetchWithFallback(path, "/admin/feedback", () => {
+  return fetchWithFallback(path, null, () => {
     let items = [...MOCK_FEEDBACK_ITEMS];
     if (status) items = items.filter((f) => f.status === status);
     if (category) items = items.filter((f) => f.category === category);
@@ -720,7 +701,7 @@ export async function updateFeedbackStatus(
 ): Promise<FeedbackRecord> {
   return postWithFallback(
     `/api/admin/feedback/${id}`,
-    `/admin/feedback/${id}`,
+    null,
     { status, adminNote } as Record<string, unknown>,
     () => {
       const fb = MOCK_FEEDBACK_ITEMS.find((f) => f.id === id);
@@ -741,7 +722,7 @@ export async function updateFeedbackStatus(
 export async function listOfferServices(): Promise<OfferServiceRecord[]> {
   return fetchWithFallback(
     "/api/admin/offer-services",
-    "/admin/offer-services",
+    null,
     () => [],
   );
 }
@@ -751,7 +732,7 @@ export async function createOfferService(
 ): Promise<OfferServiceRecord> {
   return postWithFallback(
     "/api/admin/offer-services",
-    "/admin/offer-services",
+    null,
     data as unknown as Record<string, unknown>,
     () => ({
       ...data,
@@ -788,32 +769,7 @@ export async function updateOfferService(
     if (e instanceof AdminApiError) throw e;
   }
 
-  if (API_BASE && _accessToken) {
-    try {
-      const res = await fetch(`${API_BASE}/admin/offer-services/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${_accessToken}`,
-        },
-        body: JSON.stringify(data),
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        return (json.data ?? json) as OfferServiceRecord;
-      }
-      const err = await res.json().catch(() => ({}));
-      throw new AdminApiError(
-        err?.error?.message || "Hizmet guncellenemedi",
-        res.status,
-        err?.error?.code || "unknown",
-      );
-    } catch (e) {
-      if (e instanceof AdminApiError) throw e;
-    }
-  }
-
+  // Mock fallback (dev only) — backend admin router has no offer-service routes
   if (isMockAllowed()) {
     await delay(300);
     return {
@@ -853,7 +809,7 @@ export async function deleteOfferService(id: string): Promise<{ success: boolean
 export async function listOffers(): Promise<OfferRecord[]> {
   return fetchWithFallback(
     "/api/admin/offers",
-    "/admin/offers",
+    null,
     () => [],
   );
 }
@@ -863,7 +819,7 @@ export async function createOffer(
 ): Promise<OfferRecord> {
   return postWithFallback(
     "/api/admin/offers",
-    "/admin/offers",
+    null,
     data as unknown as Record<string, unknown>,
     () => ({
       ...data,
@@ -878,7 +834,7 @@ export async function createOffer(
 export async function getOffer(id: string): Promise<OfferRecord> {
   return fetchWithFallback(
     `/api/admin/offers/${id}`,
-    `/admin/offers/${id}`,
+    null,
     () => {
       throw new AdminApiError("Teklif bulunamadi", 404, "not-found");
     },
@@ -890,7 +846,7 @@ export async function getOffer(id: string): Promise<OfferRecord> {
 export async function listCoupons(): Promise<CouponRecord[]> {
   return fetchWithFallback(
     "/api/admin/coupons",
-    "/admin/coupons",
+    null,
     () => [...MOCK_COUPONS],
   );
 }
@@ -910,7 +866,7 @@ export async function createCoupon(
 ): Promise<CouponRecord> {
   return postWithFallback(
     "/api/admin/coupons",
-    "/admin/coupons",
+    null,
     data as unknown as Record<string, unknown>,
     () => ({
       ...data,
@@ -947,32 +903,7 @@ export async function updateCoupon(
     if (e instanceof AdminApiError) throw e;
   }
 
-  if (API_BASE && _accessToken) {
-    try {
-      const res = await fetch(`${API_BASE}/admin/coupons/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${_accessToken}`,
-        },
-        body: JSON.stringify(data),
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        return (json.data ?? json) as CouponRecord;
-      }
-      const err = await res.json().catch(() => ({}));
-      throw new AdminApiError(
-        err?.error?.message || "Kupon guncellenemedi",
-        res.status,
-        err?.error?.code || "unknown",
-      );
-    } catch (e) {
-      if (e instanceof AdminApiError) throw e;
-    }
-  }
-
+  // Mock fallback (dev only) — backend admin router has no coupon PATCH route
   if (isMockAllowed()) {
     await delay(300);
     const coupon = MOCK_COUPONS.find((c) => c.id === id);
@@ -1006,30 +937,7 @@ export async function deleteCoupon(id: string): Promise<{ success: boolean }> {
     if (e instanceof AdminApiError) throw e;
   }
 
-  if (API_BASE && _accessToken) {
-    try {
-      const res = await fetch(`${API_BASE}/admin/coupons/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${_accessToken}`,
-        },
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        return (json.data ?? json) as { success: boolean };
-      }
-      const err = await res.json().catch(() => ({}));
-      throw new AdminApiError(
-        err?.error?.message || "Kupon silinemedi",
-        res.status,
-        err?.error?.code || "unknown",
-      );
-    } catch (e) {
-      if (e instanceof AdminApiError) throw e;
-    }
-  }
-
+  // Mock fallback (dev only) — backend admin router has no coupon DELETE route
   if (isMockAllowed()) {
     await delay(300);
     return { success: true };
@@ -1045,7 +953,7 @@ export async function deleteCoupon(id: string): Promise<{ success: boolean }> {
 export async function getCouponStats(): Promise<CouponStats> {
   return fetchWithFallback(
     "/api/admin/coupons/stats",
-    "/admin/coupons/stats",
+    null,
     () => ({
       totalCoupons: MOCK_COUPONS.length,
       activeCoupons: MOCK_COUPONS.filter((c) => c.isActive).length,
@@ -1060,7 +968,7 @@ export async function getCouponStats(): Promise<CouponStats> {
 export async function listCouponRedemptions(): Promise<CouponRedemptionRecord[]> {
   return fetchWithFallback(
     "/api/admin/coupons/redemptions",
-    "/admin/coupons/redemptions",
+    null,
     () => [...MOCK_COUPON_REDEMPTIONS],
   );
 }
