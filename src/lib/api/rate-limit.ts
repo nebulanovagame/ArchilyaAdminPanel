@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import Redis from "ioredis";
 
 export type RateLimitOptions = {
   limit: number;
@@ -10,18 +11,17 @@ type RateLimitResult =
   | { limited: false }
   | { limited: true; retryAfter: number };
 
-type RedisRestConfig = {
-  url: string;
-  token: string;
-};
-
-type UpstashPipelineItem = {
-  result?: unknown;
-  error?: string;
-};
-
 const MAX_KEYS = 10_000;
+const REDIS_URL_MISSING_MESSAGE =
+  "[admin-rate-limit] REDIS_URL tanimli degil; in-memory rate limiting kullaniliyor.";
+const REDIS_ERROR_MESSAGE =
+  "[admin-rate-limit] Redis hatasi; in-memory rate limiting kullaniliyor.";
+
 const buckets = new Map<string, number[]>();
+
+// Tembel Redis istemcisi: `undefined` = henuz cozulmedi, `null` = kullanilamaz.
+// Modul yuklenirken baglanti ACILMAZ; ilk kullanimda getRedis() icinde olusturulur.
+let redis: Redis | null | undefined;
 
 export const adminRateLimits = {
   read: { limit: 60, windowMs: 60_000, keyPrefix: "admin-read" },
@@ -49,13 +49,29 @@ function pruneBuckets(): void {
   }
 }
 
-function getRedisRestConfig(): RedisRestConfig | null {
-  const url = process.env.ADMIN_RATE_LIMIT_REDIS_REST_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.ADMIN_RATE_LIMIT_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+/**
+ * Redis istemcisini tembel (lazy) olusturur. `REDIS_URL` yoksa `console.warn` ile
+ * uyarip `null` doner; boylece in-memory limiter kullanilir. Istemci bir kez
+ * olusturulur ve modul kapsaminda yeniden kullanilir.
+ */
+function getRedis(): Redis | null {
+  if (redis !== undefined) return redis;
 
-  if (!url || !token) return null;
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    console.warn(REDIS_URL_MISSING_MESSAGE);
+    redis = null;
+    return redis;
+  }
 
-  return { url: url.replace(/\/+$/, ""), token };
+  try {
+    redis = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 });
+  } catch (error) {
+    console.error(REDIS_ERROR_MESSAGE, error);
+    redis = null;
+  }
+
+  return redis;
 }
 
 function getRateLimitKey(request: Request, options: RateLimitOptions): string {
@@ -88,39 +104,22 @@ export function checkRateLimit(
 async function checkRedisRateLimit(
   request: Request,
   options: RateLimitOptions,
-  config: RedisRestConfig,
+  client: Redis,
 ): Promise<RateLimitResult> {
   const now = Date.now();
   const windowStart = now - options.windowMs;
   const key = getRateLimitKey(request, options);
   const member = `${now}-${crypto.randomUUID()}`;
 
-  const response = await fetch(`${config.url}/pipeline`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify([
-      ["ZREMRANGEBYSCORE", key, 0, windowStart],
-      ["ZCARD", key],
-      ["ZADD", key, now, member],
-      ["PEXPIRE", key, options.windowMs],
-    ]),
-    cache: "no-store",
-  });
+  const pipeline = client.pipeline();
+  pipeline.zremrangebyscore(key, 0, windowStart);
+  pipeline.zcard(key);
+  pipeline.zadd(key, now, member);
+  pipeline.pexpire(key, options.windowMs);
 
-  if (!response.ok) {
-    throw new Error(`Redis REST rate limit request failed: ${response.status}`);
-  }
-
-  const results = (await response.json()) as UpstashPipelineItem[];
-  const pipelineError = results.find((item) => item.error)?.error;
-  if (pipelineError) {
-    throw new Error(`Redis REST rate limit pipeline failed: ${pipelineError}`);
-  }
-
-  const count = Number(results[1]?.result ?? 0);
+  // ioredis pipeline.exec() -> [[err, result], ...]
+  const results = await pipeline.exec();
+  const count = typeof results?.[1]?.[1] === "number" ? (results[1][1] as number) : 0;
 
   if (count >= options.limit) {
     return { limited: true, retryAfter: Math.max(1, Math.ceil(options.windowMs / 1000)) };
@@ -133,33 +132,16 @@ async function checkRateLimitWithStore(
   request: Request,
   options: RateLimitOptions,
 ): Promise<RateLimitResult> {
-  const config = getRedisRestConfig();
+  const client = getRedis();
 
-  if (!config) {
-    // Redis REST yapılandırılmamışsa üretimde de in-memory fallback kullan.
-    // Önceki davranış (production'da throw) tek bir env eksikliğinde tüm
-    // admin API'sini 500 ile kilitliyordu (2026-08-05 canlı arızası:
-    // kredi yükleme dahil her istek "rate-limit-unavailable" döndü).
-    // Tek replica'lık admin paneli için in-memory limit kabul edilebilir.
-    if (process.env.NODE_ENV === "production") {
-      console.warn(
-        "[admin-rate-limit] Redis REST env tanimli degil; in-memory rate limiting kullaniliyor.",
-      );
-    }
-
+  if (!client) {
     return checkRateLimit(request, options);
   }
 
   try {
-    return await checkRedisRateLimit(request, options, config);
+    return await checkRedisRateLimit(request, options, client);
   } catch (error) {
-    console.error("[admin-rate-limit] Redis REST hatasi:", error);
-    if (process.env.NODE_ENV === "production") {
-      console.warn(
-        "[admin-rate-limit] Redis REST isteginde hata; in-memory rate limiting kullaniliyor.",
-      );
-    }
-
+    console.error(REDIS_ERROR_MESSAGE, error);
     return checkRateLimit(request, options);
   }
 }
