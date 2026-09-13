@@ -28,7 +28,7 @@ async function getHandler(request: Request) {
 
     let query = supabase
       .from("payment_sessions")
-      .select("id, user_id, user_email, user_name, amount, currency, type, plan_id, package_id, credit_amount, status, created_at, completed_at, invoiced_at, invoice_url, provider_status, payment_id, conversation_id", { count: "exact" })
+      .select("id, user_id, user_email, user_name, amount, currency, type, plan_id, package_id, credit_amount, status, created_at, completed_at, invoiced_at, invoice_url, invoice_path, provider_status, payment_id, conversation_id", { count: "exact" })
       .eq("status", "completed")
       .order("completed_at", { ascending: false });
 
@@ -48,8 +48,23 @@ async function getHandler(request: Request) {
       );
     }
 
+    // invoices bucket is private: sign each stored object path on demand.
+    // The response keeps the existing `invoice_url` field name (the admin UI
+    // reads `item.invoice_url`); only the value is now a short-lived signed URL.
+    const rows = data || [];
+    const items = await Promise.all(
+      rows.map(async (row) => {
+        const invoice = row as { invoice_url: string | null; invoice_path: string | null };
+        if (!invoice.invoice_path) return row;
+        const { data: signed } = await supabase.storage
+          .from("invoices")
+          .createSignedUrl(invoice.invoice_path, 604800);
+        return { ...row, invoice_url: signed?.signedUrl || invoice.invoice_url };
+      }),
+    );
+
     return NextResponse.json({
-      items: data || [],
+      items,
       page,
       limit,
       total: count || 0,
@@ -97,7 +112,7 @@ async function patchHandler(request: Request) {
 
     if (action === "mark_invoiced") {
       const invoiceFile = formData.get("invoice") as File | null;
-      let invoiceUrl: string | null = null;
+      let invoicePath: string | null = null;
 
       if (invoiceFile && invoiceFile.size > 0) {
         if (invoiceFile.type !== "application/pdf") {
@@ -140,12 +155,12 @@ async function patchHandler(request: Request) {
           );
         }
 
-        const { data: urlData } = supabase.storage.from("invoices").getPublicUrl(filePath);
-        invoiceUrl = urlData?.publicUrl || null;
+        // invoices bucket is private: persist the object PATH, never a public URL.
+        invoicePath = filePath;
       }
 
       const updateData: Record<string, unknown> = { invoiced_at: now };
-      if (invoiceUrl) updateData.invoice_url = invoiceUrl;
+      if (invoicePath) updateData.invoice_path = invoicePath;
 
       const { error } = await supabase
         .from("payment_sessions")
@@ -168,15 +183,24 @@ async function patchHandler(request: Request) {
           action: "invoice_mark",
           resource: "payment_session",
           resourceId: ids[0],
-          details: { count: ids.length, invoiceUrl },
+          details: { count: ids.length, invoicePath },
         });
       } catch (auditErr) {
         console.warn("admin/invoices PATCH audit log error:", auditErr);
       }
 
+      // Sign the stored object path once for the email link (private bucket).
+      let signedInvoiceUrl: string | null = null;
+      if (invoicePath) {
+        const { data: signed } = await supabase.storage
+          .from("invoices")
+          .createSignedUrl(invoicePath, 604800);
+        signedInvoiceUrl = signed?.signedUrl || null;
+      }
+
       // Send invoice email (non-blocking for the mutation response)
       let emailWarning = false;
-      if (invoiceUrl) {
+      if (signedInvoiceUrl) {
         const { data: emailSession } = await supabase
           .from("payment_sessions")
           .select("user_email, user_name, amount, type, plan_id, package_id, credit_amount, currency")
@@ -212,7 +236,7 @@ async function patchHandler(request: Request) {
                       amount: s.amount,
                       currency: s.currency || "TRY",
                       description: s.type === "plan" ? `${s.plan_id} Abonelik` : `${s.package_id} Ek Paket (${s.credit_amount || 0} kredi)`,
-                      invoiceUrl,
+                      invoiceUrl: signedInvoiceUrl,
                     },
                   }),
                 });
@@ -232,13 +256,13 @@ async function patchHandler(request: Request) {
         }
       }
 
-      return NextResponse.json({ success: true, invoice_url: invoiceUrl, emailWarning });
+      return NextResponse.json({ success: true, invoice_url: signedInvoiceUrl, emailWarning });
     }
 
     if (action === "unmark_invoiced") {
       const { error } = await supabase
         .from("payment_sessions")
-        .update({ invoiced_at: null, invoice_url: null })
+        .update({ invoiced_at: null, invoice_url: null, invoice_path: null })
         .in("id", ids);
 
       if (error) {
