@@ -16,6 +16,8 @@ export type CodexPoolAccount = {
   lastError: string | null;
   lastUsedAt: string | null;
   expiresAt: string | null;
+  /** False when the slot is an unlinked placeholder still awaiting a device login. */
+  hasTokens?: boolean;
 };
 
 export type CodexPrimaryAccountHealth = {

@@ -471,17 +471,19 @@ export default function SettingsPage() {
               <div className="mb-4 flex items-center gap-2 text-xs text-gray-500">
                 <Users className="h-3.5 w-3.5" />
                 <span>
-                  {status.totalAccounts ?? status.accounts.length} / {status.enabledAccounts ?? status.accounts.length} hesap sağlıklı ·{" "}
+                  {status.healthyAccounts ?? status.accounts.length} / {status.totalAccounts ?? status.accounts.length} hesap sağlıklı ·{" "}
                   {status.availableAccounts ?? status.accounts.length} uygun
                 </span>
               </div>
 
               <div className="space-y-3">
                 {status.accounts.map((account) => {
+                  const isLinked = account.hasTokens !== false;
                   const healthMeta = ACCOUNT_HEALTH_META[account.healthStatus];
                   const HealthIcon = healthMeta.icon;
                   const isResetting = resettingAccountId === account.id;
-                  const needsReset = account.healthStatus === "quarantined" || account.healthStatus === "degraded";
+                  // An unlinked placeholder has nothing to reset — it needs a device login.
+                  const needsReset = isLinked && (account.healthStatus === "quarantined" || account.healthStatus === "degraded");
 
                   return (
                     <div
@@ -493,10 +495,17 @@ export default function SettingsPage() {
                           <span className="text-sm font-medium text-gray-200">
                             Hesap #{account.id}
                           </span>
-                          <Badge variant={healthMeta.variant} className="text-[9px]">
-                            <HealthIcon className="mr-1 h-2.5 w-2.5" />
-                            {healthMeta.label}
-                          </Badge>
+                          {!isLinked ? (
+                            <Badge variant="warning" className="text-[9px]">
+                              <Clock3 className="mr-1 h-2.5 w-2.5" />
+                              Giriş bekliyor
+                            </Badge>
+                          ) : (
+                            <Badge variant={healthMeta.variant} className="text-[9px]">
+                              <HealthIcon className="mr-1 h-2.5 w-2.5" />
+                              {healthMeta.label}
+                            </Badge>
+                          )}
                           {!account.enabled && (
                             <Badge variant="neutral" className="text-[9px]">Pasif</Badge>
                           )}
