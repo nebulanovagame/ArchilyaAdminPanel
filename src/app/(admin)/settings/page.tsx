@@ -6,10 +6,12 @@ import {
   Bot,
   CheckCircle2,
   Clock3,
+  Copy,
   ExternalLink,
   KeyRound,
   RefreshCw,
   RotateCcw,
+  UserPlus,
   Server,
   ShieldCheck,
   ShieldOff,
@@ -23,6 +25,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { LoadingState } from "@/components/ui/loading-state";
 import {
   CodexAdminApiError,
+  createCodexAccount,
   createCodexSession,
   formatRemainingTime,
   getActiveCodexSession,
@@ -113,6 +116,7 @@ export default function SettingsPage() {
   const [verifying, setVerifying] = useState(false);
   const [creating, setCreating] = useState(false);
   const [resettingAccountId, setResettingAccountId] = useState<number | null>(null);
+  const [addingAccount, setAddingAccount] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
 
@@ -205,7 +209,7 @@ export default function SettingsPage() {
         updatedAt: new Date().toISOString(),
       });
       setError(null);
-      toast.success("Tek kullanımlık sunucu bağlantısı oluşturuldu.");
+      toast.success("Sunucu bağlantısı oluşturuldu.");
     } catch (createError) {
       const message = getErrorMessage(createError);
       setError(message);
@@ -225,6 +229,41 @@ export default function SettingsPage() {
       toast.error(getErrorMessage(resetError));
     } finally {
       setResettingAccountId(null);
+    }
+  };
+
+  const handleAddAccount = async () => {
+    setAddingAccount(true);
+    try {
+      const { accountId } = await createCodexAccount();
+      const created = await createCodexSession(accountId);
+      setLaunch(created);
+      setSession({
+        id: created.sessionId,
+        status: "pending",
+        failureReason: null,
+        issuedAt: new Date().toISOString(),
+        expiresAt: created.sessionExpiresAt,
+        consumedAt: null,
+        updatedAt: new Date().toISOString(),
+      });
+      setError(null);
+      toast.success("Hesap oluşturuldu. Bağlantıyı açıp girişi tamamlayın.");
+      await loadState(true);
+    } catch (addError) {
+      toast.error(getErrorMessage(addError));
+    } finally {
+      setAddingAccount(false);
+    }
+  };
+
+  const handleCopyLaunchUrl = async () => {
+    if (!launch?.launchUrl) return;
+    try {
+      await navigator.clipboard.writeText(launch.launchUrl);
+      toast.success("Bağlantı kopyalandı.");
+    } catch {
+      toast.error("Bağlantı kopyalanamadı.");
     }
   };
 
@@ -311,9 +350,9 @@ export default function SettingsPage() {
               <CheckCircle2 className="h-3.5 w-3.5" />
               Bağlantıyı doğrula
             </Button>
-            <Button variant="secondary" onClick={() => void handleCreateSession()} loading={creating}>
-              <KeyRound className="h-3.5 w-3.5" />
-              Yeni sunucu bağlantısı
+            <Button variant="secondary" onClick={() => void handleAddAccount()} loading={addingAccount}>
+              <UserPlus className="h-3.5 w-3.5" />
+              Yeni hesap bağla
             </Button>
           </div>
         </Card>
@@ -346,7 +385,7 @@ export default function SettingsPage() {
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle>Yeniden Bağlanma Oturumu</CardTitle>
-              <CardDescription>Tek kullanımlık ve süreli tarayıcı akışı</CardDescription>
+              <CardDescription>Süreli tarayıcı bağlantısı (süresi dolana kadar tekrar açılabilir)</CardDescription>
             </div>
             {session && (
               <Badge
@@ -381,31 +420,49 @@ export default function SettingsPage() {
                 Bu bağlantı {formatDate(launch.launchExpiresAt)} tarihinde geçersiz olur.
                 Bağlantıyı paylaşmayın.
               </div>
-              <a
-                href={launch.launchUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-sm border border-primary/20 bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-black transition-colors hover:bg-white"
-              >
-                Tarayıcı girişini aç
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <a
+                  href={launch.launchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-sm border border-primary/20 bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-black transition-colors hover:bg-white"
+                >
+                  Tarayıcı girişini aç
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+                <Button variant="secondary" size="sm" onClick={() => void handleCopyLaunchUrl()}>
+                  <Copy className="h-3.5 w-3.5" />
+                  Kopyala
+                </Button>
+              </div>
             </div>
           )}
 
           {!launch && sessionActive && (
             <p className="mt-5 border-t border-white/5 pt-4 text-xs leading-5 text-gray-500">
-              Güvenlik nedeniyle tek kullanımlık bağlantı yeniden gösterilemez. Önceki sekme
-              kapandıysa &ldquo;Yeni sunucu bağlantısı&rdquo; ile bu oturumu sonlandırıp yenisini oluşturun.
+              Bağlantı adresinin sunucuda yalnızca hash&apos;i saklandığı için sayfa yenilendikten
+              sonra yeniden gösterilemez. &ldquo;Yeni hesap bağla&rdquo; ile bu oturumu sonlandırıp
+              yenisini oluşturun.
             </p>
           )}
         </Card>
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Codex Hesapları</CardTitle>
-          <CardDescription>Havuzdaki ChatGPT Plus hesaplarının durumu</CardDescription>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>Codex Hesapları</CardTitle>
+            <CardDescription>Havuzdaki ChatGPT Plus hesaplarının durumu</CardDescription>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void handleAddAccount()}
+            loading={addingAccount}
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Hesap Ekle
+          </Button>
         </CardHeader>
 
         <div className="text-sm text-gray-400">

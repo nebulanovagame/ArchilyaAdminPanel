@@ -165,6 +165,10 @@ export async function resetCodexAccount(
   );
 }
 
+export function createCodexAccount(): Promise<{ success: boolean; accountId: number }> {
+  return request("/api/admin/codex/accounts", "POST");
+}
+
 export function formatRemainingTime(seconds: number | null): string {
   if (seconds === null) return "Bilinmiyor";
   if (seconds <= 0) return "Suresi doldu";
