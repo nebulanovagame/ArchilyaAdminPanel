@@ -41,7 +41,7 @@ export default function DashboardPage() {
     { title: "Aktif Workspace", value: stats?.activeWorkspaces.toLocaleString("tr-TR") || "0", desc: "Aktif calisma alanlari", icon: Building2 },
     { title: "Toplam Kredi", value: stats?.totalCreditUsage.toLocaleString("tr-TR") || "0", desc: "Kullanilabilir kredi bakiyesi", icon: Coins },
     { title: "Aktif Abonelik", value: stats?.activeSubscriptions.toLocaleString("tr-TR") || "0", desc: "Aktif odeme planlari", icon: CreditCard },
-    { title: "Bekleyen Render", value: stats?.pendingRenderJobs.toLocaleString("tr-TR") || "0", desc: "Kuyrukta bekleyen isler", icon: Image },
+    { title: "Bekleyen Render", value: stats?.pendingRenderJobs.toLocaleString("tr-TR") || "0", desc: stats?.pendingStandaloneJobs !== undefined ? `${stats.pendingStandaloneJobs} tekil + ${stats.activeBatches || 0} batch` : "Kuyrukta bekleyen isler", icon: Image },
   ];
 
   return (

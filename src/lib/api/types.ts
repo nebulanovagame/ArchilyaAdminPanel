@@ -18,7 +18,12 @@ export type DashboardStats = {
   activeWorkspaces: number;
   totalCreditUsage: number;
   activeSubscriptions: number;
+  /** Logical operations: standalone active jobs + active batches (each batch = 1). */
   pendingRenderJobs: number;
+  /** Standalone active jobs (batch children excluded). Additive — older payloads omit it. */
+  pendingStandaloneJobs?: number;
+  /** Active batches (pending/running), each counted as one operation. Additive. */
+  activeBatches?: number;
   systemStatus: "healthy" | "degraded" | "down";
 };
 
@@ -133,6 +138,30 @@ export type RenderJobRecord = {
   projectName: string;
   progress: number;
   createdAt: string;
+  completedAt: string | null;
+  /** Phase 8 (toplu render): batch'siz islerde null/undefined. Opsiyonel — mevcut tuketiciler kirilmaz. */
+  batchId?: string | null;
+  batchIndex?: number | null;
+  batch?: RenderBatchSummary | null;
+};
+
+/** Toplu render batch ozeti — job satirina gomulu olarak doner. */
+export type RenderBatchSummary = {
+  id: string;
+  toolId: string;
+  status: string;
+  totalCount: number;
+  completedCount: number;
+  failedCount: number;
+};
+
+/** Batch listeleme satiri — sayfadaki grup kartlarinda kullanilir. */
+export type RenderBatchRecord = RenderBatchSummary & {
+  userId: string;
+  userEmail: string;
+  creditUnit: number;
+  createdAt: string;
+  updatedAt: string | null;
   completedAt: string | null;
 };
 

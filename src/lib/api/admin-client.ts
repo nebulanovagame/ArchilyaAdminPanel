@@ -19,6 +19,7 @@ import type {
   CreditRecord,
   SubscriptionRecord,
   RenderJobRecord,
+  RenderBatchRecord,
   AiJobRecord,
   AuditLogEntry,
   LegacyProduct,
@@ -313,12 +314,34 @@ export async function changeSubscriptionPlan(
   );
 }
 
-export async function listRenderJobs(): Promise<RenderJobRecord[]> {
+export async function listRenderJobs(opts?: { batchId?: string }): Promise<RenderJobRecord[]> {
+  const query = opts?.batchId ? `?batchId=${encodeURIComponent(opts.batchId)}` : "";
   return fetchWithFallback(
-    "/api/admin/render-jobs",
+    `/api/admin/render-jobs${query}`,
     "/admin/render-jobs",
     () => [...MOCK_RENDER_JOBS],
   );
+}
+
+/** Phase 8: toplu render batch listesi (operator gorunurlugu). */
+export async function listRenderBatches(params?: {
+  status?: string;
+  limit?: number;
+}): Promise<RenderBatchRecord[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  const query = searchParams.toString();
+  return fetchWithFallback(
+    `/api/admin/render-batches${query ? `?${query}` : ""}`,
+    "/admin/ai-batches",
+    () => [],
+  );
+}
+
+/** Phase 8: belirli bir batch'in cocuk isleri. */
+export async function listBatchJobs(batchId: string): Promise<RenderJobRecord[]> {
+  return listRenderJobs({ batchId });
 }
 
 export async function listAiJobs(params?: {

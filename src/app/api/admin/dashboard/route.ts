@@ -12,17 +12,23 @@ async function handler() {
   try {
     const supabase = createAdminClient();
 
+    // Operator semantics: one logical operation = one standalone job OR one
+    // batch. Batch children (batch_id IS NOT NULL) are not independent
+    // operations — an 8-photo batch reads as 1 active operation, not 8.
+    // Batch detail stays inspectable via the /ai-batches admin view.
     const [
       { count: totalUsers },
       { count: activeWorkspaces },
       { count: activeSubscriptions },
-      { count: pendingRenderJobs },
+      { count: pendingStandaloneJobs },
+      { count: activeBatches },
       { data: creditData },
     ] = await Promise.all([
       supabase.from("profiles").select("*", { count: "exact", head: true }),
       supabase.from("workspaces").select("*", { count: "exact", head: true }).eq("is_active", true),
       supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("status", "active"),
-      supabase.from("ai_studio_jobs").select("*", { count: "exact", head: true }).in("status", ["pending", "queued", "running"]),
+      supabase.from("ai_studio_jobs").select("*", { count: "exact", head: true }).in("status", ["pending", "queued", "running"]).is("batch_id", null),
+      supabase.from("ai_studio_batches").select("*", { count: "exact", head: true }).in("status", ["pending", "running"]),
       supabase.from("profiles").select("total_spent"),
     ]);
 
@@ -37,7 +43,10 @@ async function handler() {
         activeWorkspaces: activeWorkspaces || 0,
         totalCreditUsage,
         activeSubscriptions: activeSubscriptions || 0,
-        pendingRenderJobs: pendingRenderJobs || 0,
+        // Logical operations: standalone active jobs + active batches (each batch = 1).
+        pendingRenderJobs: (pendingStandaloneJobs || 0) + (activeBatches || 0),
+        pendingStandaloneJobs: pendingStandaloneJobs || 0,
+        activeBatches: activeBatches || 0,
         systemStatus: "healthy" as const,
       },
     });
